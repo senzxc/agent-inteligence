@@ -79,7 +79,7 @@ class BusinessIntelligenceApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ShadcnApp(
-      title: 'BI Tracker Cabang',
+      title: 'Agent Intelligence Tracker',
       debugShowCheckedModeBanner: false,
 
       // ========================================
@@ -238,7 +238,7 @@ class _LoginPageState extends State<LoginPage> {
                   // TITLE
                   // ====================================
                   Text(
-                    'BI Tracker Cabang',
+                    'Agent Intelligence Tracker',
                     textAlign: TextAlign.center,
                     style: theme.typography.h3.copyWith(
                       fontWeight: FontWeight.bold,
@@ -370,7 +370,7 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       headers: [
         AppBar(
-          title: const Text('Dashboard BI Cabang'),
+          title: const Text('Dashboard Agent Intelligence'),
           trailing: [
             OutlineButton(
               density: ButtonDensity.compact,
