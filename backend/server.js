@@ -1,19 +1,19 @@
 const express = require('express');
+require('dotenv').config();
 
 const app = express();
-const PORT = 3000;
 
-// Middleware untuk membaca JSON
+const PORT = process.env.PORT || 3000;
+
 app.use(express.json());
 
-// Route sederhana untuk testing
 app.get('/', (req, res) => {
     res.json({
-        message: 'Backend Agent Intelligence Tracker berhasil berjalan!'
+        message: 'Agent Intelligence Tracker API',
+        status: 'running',
     });
 });
 
-// Jalankan server
 app.listen(PORT, () => {
     console.log(`Server berjalan di http://localhost:${PORT}`);
 });
