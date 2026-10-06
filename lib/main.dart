@@ -332,11 +332,7 @@ class _LoginPageState extends State<LoginPage> {
                       onPressed: _handleLogin,
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text('MASUK'),
-                          SizedBox(width: 8),
-                          Icon(LucideIcons.arrowRight, size: 16),
-                        ],
+                        children: [Text('MASUK'), SizedBox(width: 8)],
                       ),
                     ),
 
@@ -569,18 +565,14 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       headers: [
         AppBar(
-          title: const Text('Dashboard Agent Intelligence'),
           trailing: [
-            OutlineButton(
-              density: ButtonDensity.compact,
+            IconButton(
+              variance: ButtonVariance.ghost,
               onPressed: () => _showLogoutDialog(context),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(LucideIcons.logOut, size: 16),
-                  SizedBox(width: 6),
-                  Text('Keluar'),
-                ],
+              icon: const Icon(
+                LucideIcons.logOut,
+                size: 18,
+                color: Color(0xFFDC2626),
               ),
             ),
           ],
