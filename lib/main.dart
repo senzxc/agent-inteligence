@@ -333,7 +333,7 @@ class _LoginPageState extends State<LoginPage> {
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text('MASUK KE DASHBOARD'),
+                          Text('MASUK'),
                           SizedBox(width: 8),
                           Icon(LucideIcons.arrowRight, size: 16),
                         ],
@@ -368,12 +368,15 @@ void _showLogoutDialog(BuildContext context) {
 
   showOverlay(
     context,
-    const DialogConfiguration(barrierDismissible: true),
+    const DialogConfiguration(
+      barrierDismissible: true,
+      barrierColor: Color.fromRGBO(0, 0, 0, 0.54),
+    ),
     builder: (dialogContext) {
       return Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
-          child: ModalBackdrop(
+          child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: ModalContainer(
               padding: EdgeInsets.zero,
@@ -387,7 +390,10 @@ void _showLogoutDialog(BuildContext context) {
 
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 24,
+                    ),
                     decoration: const BoxDecoration(color: Color(0xFFDC2626)),
                     child: Column(
                       children: [
@@ -422,9 +428,11 @@ void _showLogoutDialog(BuildContext context) {
                   ),
 
                   // ====================================
-                  // BODY
+                  // BODY PUTIH
                   // ====================================
-                  Padding(
+                  Container(
+                    width: double.infinity,
+                    color: theme.colorScheme.card,
                     padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
                     child: Column(
                       children: [
@@ -447,38 +455,62 @@ void _showLogoutDialog(BuildContext context) {
                         // ==================================
                         Row(
                           children: [
+                            // ==============================
                             // BATAL
+                            // ==============================
+
                             Expanded(
-                              child: OutlineButton(
-                                onPressed: () {
-                                  closeOverlay(dialogContext);
-                                },
-                                child: const Row (
-                                  children: [
-                                    SizedBox(width: 50),
-                                    Text('Batal')
-                                  ]
+                              child: SizedBox(
+                                height: 42,
+                                child: Button(
+                                  style: const ButtonStyle.outline(),
+                                  onPressed: () {
+                                    closeOverlay(dialogContext);
+                                  },
+                                  child: const Center(child: Text('Batal')),
                                 ),
                               ),
                             ),
 
                             const SizedBox(width: 12),
 
+                            // ==============================
                             // KELUAR
+                            // ==============================
                             Expanded(
-                              child: DestructiveButton(
-                                onPressed: () {
-                                  closeOverlay(dialogContext);
+                              child: SizedBox(
+                                height: 42,
+                                child: ButtonStyleOverride(
+                                  decoration: (_, _, defaultDecoration) {
+                                    if (defaultDecoration is BoxDecoration) {
+                                      return defaultDecoration.copyWith(
+                                        color: const Color(0xFFDC2626),
+                                      );
+                                    }
+                                    return const BoxDecoration(
+                                      color: Color(0xFFDC2626),
+                                    );
+                                  },
+                                  child: Button(
+                                    style: const ButtonStyle.destructive(),
+                                    onPressed: () {
+                                      closeOverlay(dialogContext);
 
-                                  Navigator.pushReplacementNamed(context, '/');
-                                },
-                                child: const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(LucideIcons.logOut, size: 16),
-                                    SizedBox(width: 6),
-                                    Text('Keluar'),
-                                  ],
+                                      Navigator.pushReplacementNamed(
+                                        context,
+                                        '/',
+                                      );
+                                    },
+                                    child: const Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(LucideIcons.logOut, size: 16),
+                                        SizedBox(width: 6),
+                                        Text('Keluar'),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
