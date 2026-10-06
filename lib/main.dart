@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart' as flutter_map;
+import 'package:flutter_svg/svg.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:lottie/lottie.dart';
@@ -246,6 +247,13 @@ class _LoginPageState extends State<LoginPage> {
                           repeat: true,
                         ),
                       ),
+                    ),
+
+                    Positioned(
+                      top: 0,
+                      child: SvgPicture.asset('assets/animations/Bumiputera.svg'),
+                      width: 80,
+                      height: 80,
                     ),
 
                     const SizedBox(height: 4),
