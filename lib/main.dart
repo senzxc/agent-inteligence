@@ -3,7 +3,8 @@ import 'package:flutter_map/flutter_map.dart' as flutter_map;
 import 'package:flutter_svg/svg.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
-import 'package:lottie/lottie.dart';
+
+// import 'package:lottie/lottie.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -81,7 +82,6 @@ class BusinessIntelligenceApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ShadcnApp(
-      title: 'Agent Intelligence Tracker',
       debugShowCheckedModeBanner: false,
 
       // ========================================
@@ -94,40 +94,75 @@ class BusinessIntelligenceApp extends StatelessWidget {
       //
       theme: ThemeData(
         colorScheme: ColorScheme(
-          brightness: Brightness.dark,
-          background: const Color(0xFF09090B),
-          foreground: const Color(0xFFFAFAFA),
+          brightness: Brightness.light,
 
-          card: const Color(0xFF18181B),
-          cardForeground: const Color(0xFFFAFAFA),
+          // ========================================
+          // BACKGROUND
+          // ========================================
+          background: const Color(0xFFEEEEEE),
+          foreground: const Color(0xFF1F2937),
 
-          popover: const Color(0xFF18181B),
-          popoverForeground: const Color(0xFFFAFAFA),
+          // ========================================
+          // CARD
+          // ========================================
+          card: const Color(0xFFFFFFFF),
+          cardForeground: const Color(0xFF1F2937),
 
-          primary: const Color(0xFF8B5CF6),
+          // ========================================
+          // POPOVER
+          // ========================================
+          popover: const Color(0xFFFFFFFF),
+          popoverForeground: const Color(0xFF1F2937),
+
+          // ========================================
+          // PRIMARY BLUE
+          // ========================================
+          primary: const Color(0xFF1565C0),
           primaryForeground: const Color(0xFFFFFFFF),
 
-          secondary: const Color(0xFF27272A),
-          secondaryForeground: const Color(0xFFFAFAFA),
+          // ========================================
+          // SECONDARY
+          // ========================================
+          secondary: const Color(0xFFE3F2FD),
+          secondaryForeground: const Color(0xFF1565C0),
 
-          muted: const Color(0xFF27272A),
-          mutedForeground: const Color(0xFFA1A1AA),
+          // ========================================
+          // MUTED
+          // ========================================
+          muted: const Color(0xFFF3F4F6),
+          mutedForeground: const Color(0xFF6B7280),
 
-          accent: const Color(0xFF27272A),
-          accentForeground: const Color(0xFFFAFAFA),
+          // ========================================
+          // ACCENT
+          // ========================================
+          accent: const Color(0xFFE3F2FD),
+          accentForeground: const Color(0xFF1565C0),
 
-          destructive: const Color(0xFFEF4444),
+          // ========================================
+          // ERROR
+          // ========================================
+          destructive: const Color(0xFFDC2626),
           destructiveForeground: const Color(0xFFFFFFFF),
 
-          border: const Color(0xFF27272A),
-          input: const Color(0xFF27272A),
-          ring: const Color(0xFF8B5CF6),
+          // ========================================
+          // BORDER & INPUT
+          // ========================================
+          border: const Color(0xFFE5E7EB),
+          input: const Color(0xFFE5E7EB),
 
-          chart1: const Color(0xFF8B5CF6),
-          chart2: const Color(0xFFA78BFA),
-          chart3: const Color(0xFFC4B5FD),
-          chart4: const Color(0xFF7C3AED),
-          chart5: const Color(0xFF6D28D9),
+          // ========================================
+          // FOCUS RING
+          // ========================================
+          ring: const Color(0xFF1565C0),
+
+          // ========================================
+          // CHART COLORS
+          // ========================================
+          chart1: const Color(0xFF1565C0),
+          chart2: const Color(0xFF1976D2),
+          chart3: const Color(0xFF42A5F5),
+          chart4: const Color(0xFF0D47A1),
+          chart5: const Color(0xFF64B5F6),
         ),
         radius: 0.75,
       ),
@@ -154,45 +189,32 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final TextEditingController _usernameController =
-      TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
 
-  final TextEditingController _passwordController =
-      TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   void _handleLogin() {
     final username = _usernameController.text.trim();
     final password = _passwordController.text.trim();
 
     if (username.isNotEmpty && password.isNotEmpty) {
-      Navigator.pushReplacementNamed(
-        context,
-        '/home',
-        arguments: username,
-      );
+      Navigator.pushReplacementNamed(context, '/home', arguments: username);
     } else {
       showToast(
         context: context,
         builder: (context, overlay) {
           return SurfaceCard(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 12,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   LucideIcons.circleAlert,
                   size: 18,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .destructive,
+                  color: Theme.of(context).colorScheme.destructive,
                 ),
                 const SizedBox(width: 8),
-                const Text(
-                  'Username dan Password wajib diisi!',
-                ),
+                const Text('Username dan Password wajib diisi!'),
               ],
             ),
           );
@@ -218,59 +240,31 @@ class _LoginPageState extends State<LoginPage> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: 430,
-              ),
+              constraints: const BoxConstraints(maxWidth: 400),
               child: Card(
-                padding: const EdgeInsets.fromLTRB(
-                  28,
-                  24,
-                  28,
-                  28,
-                ),
+                padding: const EdgeInsets.fromLTRB(28, 38, 28, 28),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-
                     // ====================================
                     // LOTTIE ANIMATION
                     // ====================================
 
-                    Center(
-                      child: SizedBox(
-                        width: 250,
-                        height: 220,
-                        child: Lottie.asset(
-                          'assets/animations/login.json',
-                          fit: BoxFit.contain,
-                          repeat: true,
-                        ),
+                    Positioned(
+                      top: 0,
+                      child: SvgPicture.asset(
+                        'assets/animations/Bumiputera.svg',
+                        width: 80,
+                        height: 80,
                       ),
                     ),
 
-                    Positioned(
-                      top: 0,
-                      child: SvgPicture.asset('assets/animations/Bumiputera.svg'),
-                      width: 80,
-                      height: 80,
-                    ),
-
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 25),
 
                     // ====================================
                     // TITLE
                     // ====================================
-
-                    Text(
-                      'Agent Intelligence Tracker',
-                      textAlign: TextAlign.center,
-                      style: theme.typography.h3.copyWith(
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-
                     const SizedBox(height: 6),
 
                     Text(
@@ -286,7 +280,6 @@ class _LoginPageState extends State<LoginPage> {
                     // ====================================
                     // USERNAME
                     // ====================================
-
                     Text(
                       'Username',
                       style: theme.typography.small.copyWith(
@@ -298,16 +291,9 @@ class _LoginPageState extends State<LoginPage> {
 
                     TextField(
                       controller: _usernameController,
-                      placeholder: const Text(
-                        'Masukkan username',
-                      ),
+                      placeholder: const Text('Masukkan username'),
                       features: [
-                        InputLeadingFeature(
-                          Icon(
-                            LucideIcons.user,
-                            size: 18,
-                          ),
-                        ),
+                        InputLeadingFeature(Icon(LucideIcons.user, size: 18)),
                       ],
                     ),
 
@@ -316,7 +302,6 @@ class _LoginPageState extends State<LoginPage> {
                     // ====================================
                     // PASSWORD
                     // ====================================
-
                     Text(
                       'Password',
                       style: theme.typography.small.copyWith(
@@ -329,15 +314,10 @@ class _LoginPageState extends State<LoginPage> {
                     TextField(
                       controller: _passwordController,
                       obscureText: true,
-                      placeholder: const Text(
-                        'Masukkan password',
-                      ),
+                      placeholder: const Text('Masukkan password'),
                       features: [
                         InputLeadingFeature(
-                          Icon(
-                            LucideIcons.keyRound,
-                            size: 18,
-                          ),
+                          Icon(LucideIcons.keyRound, size: 18),
                         ),
                         const InputPasswordToggleFeature(),
                       ],
@@ -348,21 +328,14 @@ class _LoginPageState extends State<LoginPage> {
                     // ====================================
                     // LOGIN BUTTON
                     // ====================================
-
                     PrimaryButton(
                       onPressed: _handleLogin,
                       child: const Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.center,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(
-                            'MASUK KE DASHBOARD',
-                          ),
+                          Text('MASUK KE DASHBOARD'),
                           SizedBox(width: 8),
-                          Icon(
-                            LucideIcons.arrowRight,
-                            size: 16,
-                          ),
+                          Icon(LucideIcons.arrowRight, size: 16),
                         ],
                       ),
                     ),
@@ -372,9 +345,8 @@ class _LoginPageState extends State<LoginPage> {
                     // ====================================
                     // FOOTER
                     // ====================================
-
                     Text(
-                      'Agent Intelligence Tracker',
+                      '© Agent Intelligence Tracker 2026',
                       textAlign: TextAlign.center,
                       style: theme.typography.xSmall.copyWith(
                         color: theme.colorScheme.mutedForeground,
@@ -391,6 +363,140 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
+void _showLogoutDialog(BuildContext context) {
+  final theme = Theme.of(context);
+
+  showOverlay(
+    context,
+    const DialogConfiguration(barrierDismissible: true),
+    builder: (dialogContext) {
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: ModalBackdrop(
+            borderRadius: BorderRadius.circular(16),
+            child: ModalContainer(
+              padding: EdgeInsets.zero,
+              borderRadius: BorderRadius.circular(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ====================================
+                  // HEADER MERAH
+                  // ====================================
+
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
+                    decoration: const BoxDecoration(color: Color(0xFFDC2626)),
+                    child: Column(
+                      children: [
+                        // ICON
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            LucideIcons.logOut,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+
+                        const SizedBox(height: 14),
+
+                        // TITLE
+                        const Text(
+                          'Yakin ingin keluar?',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ====================================
+                  // BODY
+                  // ====================================
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
+                    child: Column(
+                      children: [
+                        Text(
+                          'Anda akan keluar dari sesi saat ini. '
+                          'Pastikan semua pekerjaan yang sedang '
+                          'dilakukan telah selesai sebelum keluar '
+                          'dari aplikasi.',
+                          textAlign: TextAlign.center,
+                          style: theme.typography.small.copyWith(
+                            color: theme.colorScheme.mutedForeground,
+                            height: 1.5,
+                          ),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // ==================================
+                        // BUTTONS
+                        // ==================================
+                        Row(
+                          children: [
+                            // BATAL
+                            Expanded(
+                              child: OutlineButton(
+                                onPressed: () {
+                                  closeOverlay(dialogContext);
+                                },
+                                child: const Row (
+                                  children: [
+                                    SizedBox(width: 50),
+                                    Text('Batal')
+                                  ]
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(width: 12),
+
+                            // KELUAR
+                            Expanded(
+                              child: DestructiveButton(
+                                onPressed: () {
+                                  closeOverlay(dialogContext);
+
+                                  Navigator.pushReplacementNamed(context, '/');
+                                },
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(LucideIcons.logOut, size: 16),
+                                    SizedBox(width: 6),
+                                    Text('Keluar'),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
 // ==========================================
 // 2. HOME PAGE
 // ==========================================
@@ -401,26 +507,25 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    final String username =
+    final username =
         ModalRoute.of(context)?.settings.arguments as String? ?? 'Admin Cabang';
 
-    final List<Cabang> cabangList = [
-      const Cabang(
+    const cabangList = [
+      Cabang(
         nama: 'Cabang Regional Aceh',
         alamat: 'Jl. T. Daud Beureueh, Banda Aceh',
         lat: 5.5483,
         lng: 95.3238,
         status: 'Aktif Operasional',
       ),
-      const Cabang(
+      Cabang(
         nama: 'Cabang Utama Jakarta',
         alamat: 'Jl. Wolter Monginsidi, Jakarta Selatan',
         lat: -6.2378,
         lng: 106.8143,
         status: 'Pusat Headquarter',
       ),
-      const Cabang(
+      Cabang(
         nama: 'Cabang Operasional Bekasi',
         alamat: 'Jl. Ahmad Yani, Kota Bekasi',
         lat: -6.2383,
@@ -436,9 +541,7 @@ class HomePage extends StatelessWidget {
           trailing: [
             OutlineButton(
               density: ButtonDensity.compact,
-              onPressed: () {
-                Navigator.pushReplacementNamed(context, '/');
-              },
+              onPressed: () => _showLogoutDialog(context),
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -451,17 +554,9 @@ class HomePage extends StatelessWidget {
           ],
         ),
       ],
-
-      // ========================================
-      // CONTENT
-      // ========================================
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ======================================
-          // WELCOME BANNER
-          // ======================================
-
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(24),
@@ -479,9 +574,7 @@ class HomePage extends StatelessWidget {
                     color: theme.colorScheme.mutedForeground,
                   ),
                 ),
-
                 const SizedBox(height: 4),
-
                 Text(
                   username.capitalize(),
                   style: theme.typography.h2.copyWith(
@@ -489,9 +582,7 @@ class HomePage extends StatelessWidget {
                     color: theme.colorScheme.primary,
                   ),
                 ),
-
                 const SizedBox(height: 12),
-
                 statusBadge(
                   context,
                   '3 Titik Cabang Aktif Terpantau Realtime',
@@ -500,10 +591,6 @@ class HomePage extends StatelessWidget {
               ],
             ),
           ),
-
-          // ======================================
-          // SECTION TITLE
-          // ======================================
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
             child: Text(
@@ -511,10 +598,6 @@ class HomePage extends StatelessWidget {
               style: theme.typography.h4.copyWith(fontWeight: FontWeight.bold),
             ),
           ),
-
-          // ======================================
-          // LIST CABANG
-          // ======================================
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -530,14 +613,12 @@ class HomePage extends StatelessWidget {
                     },
                     child: Row(
                       children: [
-                        // ========================
-                        // ICON
-                        // ========================
-
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: theme.colorScheme.primary.withOpacity(0.15),
+                            color: theme.colorScheme.primary.withValues(
+                              alpha: 0.15,
+                            ),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
@@ -546,12 +627,7 @@ class HomePage extends StatelessWidget {
                             size: 24,
                           ),
                         ),
-
                         const SizedBox(width: 16),
-
-                        // ========================
-                        // TEXT
-                        // ========================
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -562,25 +638,19 @@ class HomePage extends StatelessWidget {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-
                               const SizedBox(height: 4),
-
                               Text(
                                 cabang.alamat,
                                 style: theme.typography.small.copyWith(
                                   color: theme.colorScheme.mutedForeground,
                                 ),
                               ),
-
                               const SizedBox(height: 8),
-
                               statusBadge(context, cabang.status),
                             ],
                           ),
                         ),
-
                         const SizedBox(width: 12),
-
                         Icon(
                           LucideIcons.chevronRight,
                           color: theme.colorScheme.mutedForeground,
@@ -653,7 +723,10 @@ class _MapsPageState extends State<MapsPage> {
 
           flutter_map.FlutterMap(
             mapController: _mapController,
-            options: flutter_map.MapOptions(initialCenter: targetLocation, initialZoom: 15),
+            options: flutter_map.MapOptions(
+              initialCenter: targetLocation,
+              initialZoom: 15,
+            ),
             children: [
               flutter_map.TileLayer(
                 urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
