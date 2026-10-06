@@ -1,7 +1,8 @@
 import 'package:flutter/services.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map/flutter_map.dart' as flutter_map;
 import 'package:latlong2/latlong.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:lottie/lottie.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -152,32 +153,45 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _usernameController =
+      TextEditingController();
 
-  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _passwordController =
+      TextEditingController();
 
   void _handleLogin() {
     final username = _usernameController.text.trim();
     final password = _passwordController.text.trim();
 
     if (username.isNotEmpty && password.isNotEmpty) {
-      Navigator.pushReplacementNamed(context, '/home', arguments: username);
+      Navigator.pushReplacementNamed(
+        context,
+        '/home',
+        arguments: username,
+      );
     } else {
       showToast(
         context: context,
         builder: (context, overlay) {
           return SurfaceCard(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   LucideIcons.circleAlert,
                   size: 18,
-                  color: Theme.of(context).colorScheme.destructive,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .destructive,
                 ),
                 const SizedBox(width: 8),
-                const Text('Username dan Password wajib diisi!'),
+                const Text(
+                  'Username dan Password wajib diisi!',
+                ),
               ],
             ),
           );
@@ -198,128 +212,168 @@ class _LoginPageState extends State<LoginPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Card(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // ====================================
-                  // LOGO
-                  // ====================================
+      child: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: 430,
+              ),
+              child: Card(
+                padding: const EdgeInsets.fromLTRB(
+                  28,
+                  24,
+                  28,
+                  28,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
 
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withOpacity(0.15),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: theme.colorScheme.primary.withOpacity(0.3),
-                          width: 1.5,
+                    // ====================================
+                    // LOTTIE ANIMATION
+                    // ====================================
+
+                    Center(
+                      child: SizedBox(
+                        width: 250,
+                        height: 220,
+                        child: Lottie.asset(
+                          'assets/animations/login.json',
+                          fit: BoxFit.contain,
+                          repeat: true,
                         ),
                       ),
-                      child: Icon(
-                        LucideIcons.building2,
-                        size: 42,
-                        color: theme.colorScheme.primary,
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    // ====================================
+                    // TITLE
+                    // ====================================
+
+                    Text(
+                      'Agent Intelligence Tracker',
+                      textAlign: TextAlign.center,
+                      style: theme.typography.h3.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.5,
                       ),
                     ),
-                  ),
 
-                  const SizedBox(height: 24),
+                    const SizedBox(height: 6),
 
-                  // ====================================
-                  // TITLE
-                  // ====================================
-                  Text(
-                    'Agent Intelligence Tracker',
-                    textAlign: TextAlign.center,
-                    style: theme.typography.h3.copyWith(
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.5,
+                    Text(
+                      'Masuk dengan akun perusahaan yang terdaftar',
+                      textAlign: TextAlign.center,
+                      style: theme.typography.small.copyWith(
+                        color: theme.colorScheme.mutedForeground,
+                      ),
                     ),
-                  ),
 
-                  const SizedBox(height: 6),
+                    const SizedBox(height: 30),
 
-                  Text(
-                    'Masuk dengan akun perusahaan yang terdaftar',
-                    textAlign: TextAlign.center,
-                    style: theme.typography.small.copyWith(
-                      color: theme.colorScheme.mutedForeground,
+                    // ====================================
+                    // USERNAME
+                    // ====================================
+
+                    Text(
+                      'Username',
+                      style: theme.typography.small.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
 
-                  const SizedBox(height: 32),
+                    const SizedBox(height: 8),
 
-                  // ====================================
-                  // USERNAME
-                  // ====================================
-                  Text(
-                    'Username',
-                    style: theme.typography.small.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  TextField(
-                    controller: _usernameController,
-                    placeholder: const Text('Masukkan username'),
-                    features: [
-                      InputLeadingFeature(Icon(LucideIcons.user, size: 18)),
-                    ],
-                  ),
-
-                  const SizedBox(height: 18),
-
-                  // ====================================
-                  // PASSWORD
-                  // ====================================
-                  Text(
-                    'Password',
-                    style: theme.typography.small.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  TextField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    placeholder: const Text('Masukkan password'),
-                    features: [
-                      InputLeadingFeature(Icon(LucideIcons.keyRound, size: 18)),
-
-                      const InputPasswordToggleFeature(),
-                    ],
-                  ),
-
-                  const SizedBox(height: 28),
-
-                  // ====================================
-                  // LOGIN BUTTON
-                  // ====================================
-                  PrimaryButton(
-                    onPressed: _handleLogin,
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text('MASUK KE DASHBOARD'),
-                        SizedBox(width: 8),
-                        Icon(LucideIcons.arrowRight, size: 16),
+                    TextField(
+                      controller: _usernameController,
+                      placeholder: const Text(
+                        'Masukkan username',
+                      ),
+                      features: [
+                        InputLeadingFeature(
+                          Icon(
+                            LucideIcons.user,
+                            size: 18,
+                          ),
+                        ),
                       ],
                     ),
-                  ),
-                ],
+
+                    const SizedBox(height: 18),
+
+                    // ====================================
+                    // PASSWORD
+                    // ====================================
+
+                    Text(
+                      'Password',
+                      style: theme.typography.small.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    TextField(
+                      controller: _passwordController,
+                      obscureText: true,
+                      placeholder: const Text(
+                        'Masukkan password',
+                      ),
+                      features: [
+                        InputLeadingFeature(
+                          Icon(
+                            LucideIcons.keyRound,
+                            size: 18,
+                          ),
+                        ),
+                        const InputPasswordToggleFeature(),
+                      ],
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // ====================================
+                    // LOGIN BUTTON
+                    // ====================================
+
+                    PrimaryButton(
+                      onPressed: _handleLogin,
+                      child: const Row(
+                        mainAxisAlignment:
+                            MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'MASUK KE DASHBOARD',
+                          ),
+                          SizedBox(width: 8),
+                          Icon(
+                            LucideIcons.arrowRight,
+                            size: 16,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // ====================================
+                    // FOOTER
+                    // ====================================
+
+                    Text(
+                      'Agent Intelligence Tracker',
+                      textAlign: TextAlign.center,
+                      style: theme.typography.xSmall.copyWith(
+                        color: theme.colorScheme.mutedForeground,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -549,7 +603,7 @@ class MapsPage extends StatefulWidget {
 }
 
 class _MapsPageState extends State<MapsPage> {
-  final MapController _mapController = MapController();
+  final flutter_map.MapController _mapController = flutter_map.MapController();
 
   @override
   Widget build(BuildContext context) {
@@ -589,11 +643,11 @@ class _MapsPageState extends State<MapsPage> {
           // MAP
           // ========================================
 
-          FlutterMap(
+          flutter_map.FlutterMap(
             mapController: _mapController,
-            options: MapOptions(initialCenter: targetLocation, initialZoom: 15),
+            options: flutter_map.MapOptions(initialCenter: targetLocation, initialZoom: 15),
             children: [
-              TileLayer(
+              flutter_map.TileLayer(
                 urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
                 userAgentPackageName: 'com.devasatrio.bi_cabang_tracker',
               ),
@@ -601,9 +655,9 @@ class _MapsPageState extends State<MapsPage> {
               // ==================================
               // MARKER
               // ==================================
-              MarkerLayer(
+              flutter_map.MarkerLayer(
                 markers: [
-                  Marker(
+                  flutter_map.Marker(
                     point: targetLocation,
                     width: 50,
                     height: 50,
