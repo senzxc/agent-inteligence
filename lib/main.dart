@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart' as flutter_map;
 import 'package:flutter_svg/svg.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'services/api_service.dart';
 
 // import 'package:lottie/lottie.dart';
 
@@ -225,40 +226,69 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _usernameController = TextEditingController();
 
   final TextEditingController _passwordController = TextEditingController();
+  bool _isLoggingIn = false;
 
-  void _handleLogin() {
-    final username = _usernameController.text.trim();
-    final password = _passwordController.text.trim();
+  void _showLoginError(String message) {
+    showToast(
+      context: context,
+      builder: (context, overlay) {
+        return SurfaceCard(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                LucideIcons.circleAlert,
+                size: 18,
+                color: Theme.of(context).colorScheme.destructive,
+              ),
+              const SizedBox(width: 8),
+              Flexible(child: Text(message)),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
-    if (username.isNotEmpty && password.isNotEmpty) {
-      Navigator.pushReplacement(
-        context,
-        ShadcnPageRoute<void>(
-          settings: RouteSettings(name: '/home', arguments: username),
-          builder: (context) => const HomePage(),
-        ),
-      );
-    } else {
-      showToast(
-        context: context,
-        builder: (context, overlay) {
-          return SurfaceCard(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  LucideIcons.circleAlert,
-                  size: 18,
-                  color: Theme.of(context).colorScheme.destructive,
-                ),
-                const SizedBox(width: 8),
-                const Text('Username dan Password wajib diisi!'),
-              ],
-            ),
-          );
-        },
-      );
+  Future<void> _handleLogin() async {
+    final stambuk = _usernameController.text.trim();
+    final password = _passwordController.text;
+
+    if (stambuk.isEmpty || password.isEmpty) {
+      _showLoginError('Stambuk dan Password wajib diisi!');
+      return;
+    }
+
+    setState(() => _isLoggingIn = true);
+
+    try {
+      final result = await ApiService.login(stambuk, password);
+      final statusCode = result['statusCode'];
+      final data = result['data'];
+
+      if (statusCode == 200 &&
+          data is Map<String, dynamic> &&
+          data['success'] == true &&
+          data['user'] is Map) {
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(
+          context,
+          '/home',
+          arguments: Map<String, dynamic>.from(data['user'] as Map),
+        );
+      } else {
+        final message = data is Map
+            ? data['message']?.toString()
+            : null;
+        _showLoginError(message ?? 'Stambuk atau password salah.');
+      }
+    } catch (error) {
+      _showLoginError('Tidak dapat terhubung ke server. Periksa koneksi Anda.');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoggingIn = false);
+      }
     }
   }
 
@@ -332,7 +362,7 @@ class _LoginPageState extends State<LoginPage> {
                             // USERNAME
                             // ====================================
                             Text(
-                              'Username',
+                              'Stambuk',
                               style: theme.typography.small.copyWith(
                                 fontWeight: FontWeight.w600,
                               ),
@@ -342,7 +372,7 @@ class _LoginPageState extends State<LoginPage> {
 
                             TextField(
                               controller: _usernameController,
-                              placeholder: const Text('Masukkan username'),
+                              placeholder: const Text('Masukkan stambuk'),
                               features: [
                                 InputLeadingFeature(
                                   Icon(LucideIcons.user, size: 18),
@@ -394,10 +424,21 @@ class _LoginPageState extends State<LoginPage> {
                             // ====================================
                             Button(
                               style: _brandButtonStyle(),
-                              onPressed: _handleLogin,
-                              child: const Row(
+                              onPressed: _isLoggingIn ? null : _handleLogin,
+                              child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                children: [Text('MASUK'), SizedBox(width: 8)],
+                                children: [
+                                  const Text('MASUK'),
+                                  const SizedBox(width: 8),
+                                  if (_isLoggingIn)
+                                    SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
 
@@ -611,8 +652,10 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final username =
-        ModalRoute.of(context)?.settings.arguments as String? ?? 'Admin Cabang';
+    final arguments = ModalRoute.of(context)?.settings.arguments;
+    final user = arguments is Map ? arguments : const <String, dynamic>{};
+    final nama = (user['NAMA'] ?? user['nama'])?.toString().trim();
+    final displayName = nama == null || nama.isEmpty ? 'Admin Cabang' : nama;
 
     const cabangList = [
       Cabang(
@@ -686,7 +729,7 @@ class HomePage extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    username.capitalize(),
+                    displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.typography.h2.copyWith(
