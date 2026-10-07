@@ -26,4 +26,16 @@ class ApiService {
       'data': data,
     };
   }
+    static Future<Map<String, dynamic>> getKantor() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/kantor'),
+    );
+
+    final data = jsonDecode(response.body);
+
+    return {
+      'statusCode': response.statusCode,
+      'data': data,
+    };
+  }
 }

@@ -93,6 +93,7 @@ Widget statusBadge(BuildContext context, String text, {IconData? icon}) {
 class Cabang {
   final String nama;
   final String alamat;
+  final String email;
   final double lat;
   final double lng;
   final String status;
@@ -100,6 +101,7 @@ class Cabang {
   const Cabang({
     required this.nama,
     required this.alamat,
+    required this.email,
     required this.lat,
     required this.lng,
     required this.status,
@@ -646,8 +648,66 @@ void _showLogoutDialog(BuildContext context) {
 // 2. HOME PAGE
 // ==========================================
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+   List<Map<String, dynamic>> _kantorList = [];
+  bool _isLoadingKantor = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadKantor();
+  }
+
+  Future<void> _loadKantor() async {
+    try {
+      final result = await ApiService.getKantor();
+
+      final statusCode = result['statusCode'];
+      final data = result['data'];
+
+      if (statusCode == 200 &&
+          data is Map<String, dynamic> &&
+          data['success'] == true &&
+          data['data'] is List) {
+        final kantor = (data['data'] as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+
+        if (!mounted) return;
+
+        setState(() {
+          _kantorList = kantor;
+          _isLoadingKantor = false;
+        });
+
+        debugPrint('Jumlah kantor: ${_kantorList.length}');
+        debugPrint('Data kantor: $_kantorList');
+      } else {
+        if (!mounted) return;
+
+        setState(() {
+          _isLoadingKantor = false;
+        });
+
+        debugPrint('Gagal mengambil data kantor: ${data['message']}');
+      }
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoadingKantor = false;
+      });
+
+      debugPrint('Error get kantor: $error');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -657,29 +717,40 @@ class HomePage extends StatelessWidget {
     final nama = (user['NAMA'] ?? user['nama'])?.toString().trim();
     final displayName = nama == null || nama.isEmpty ? 'Admin Cabang' : nama;
 
-    const cabangList = [
-      Cabang(
-        nama: 'Cabang Regional Aceh',
-        alamat: 'Jl. T. Daud Beureueh, Banda Aceh',
-        lat: 5.5483,
-        lng: 95.3238,
-        status: 'Aktif Operasional',
-      ),
-      Cabang(
-        nama: 'Cabang Utama Jakarta',
-        alamat: 'Jl. Wolter Monginsidi, Jakarta Selatan',
-        lat: -6.2378,
-        lng: 106.8143,
-        status: 'Pusat Headquarter',
-      ),
-      Cabang(
-        nama: 'Cabang Operasional Bekasi',
-        alamat: 'Jl. Ahmad Yani, Kota Bekasi',
-        lat: -6.2383,
-        lng: 106.9756,
-        status: 'Aktif Operasional',
-      ),
-    ];
+    // const cabangList = [
+    //   Cabang(
+    //     nama: 'Cabang Regional Aceh',
+    //     alamat: 'Jl. T. Daud Beureueh, Banda Aceh',
+    //     lat: 5.5483,
+    //     lng: 95.3238,
+    //     status: 'Aktif Operasional',
+    //   ),
+    //   Cabang(
+    //     nama: 'Cabang Utama Jakarta',
+    //     alamat: 'Jl. Wolter Monginsidi, Jakarta Selatan',
+    //     lat: -6.2378,
+    //     lng: 106.8143,
+    //     status: 'Pusat Headquarter',
+    //   ),
+    //   Cabang(
+    //     nama: 'Cabang Operasional Bekasi',
+    //     alamat: 'Jl. Ahmad Yani, Kota Bekasi',
+    //     lat: -6.2383,
+    //     lng: 106.9756,
+    //     status: 'Aktif Operasional',
+    //   ),
+    // ];
+
+    final cabangList = _kantorList.map((kantor) {
+      return Cabang(
+        nama: kantor['NAMA_KANTOR']?.toString() ?? '-',
+        alamat: kantor['ALAMAT_KANTOR']?.toString() ?? '-',
+        email: kantor['EMAIL']?.toString() ?? '-',
+        lat: (kantor['LATITUDE'] as num?)?.toDouble() ?? 0.0,
+        lng: (kantor['LONGITUDE'] as num?)?.toDouble() ?? 0.0,
+        status: kantor['KET_KANTOR']?.toString() ?? '-',
+      );
+    }).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFEAF3FF),
@@ -760,7 +831,7 @@ class HomePage extends StatelessWidget {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            '${cabangList.length} titik cabang aktif',
+                            '${_kantorList.length} titik cabang aktif',
                             style: theme.typography.small.copyWith(
                               color: Colors.white,
                               fontWeight: FontWeight.w600,
@@ -855,7 +926,10 @@ class HomePage extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  statusBadge(context, cabang.status),
+                                  statusBadge(
+                                    context, 
+                                    cabang.status == 'C' ? 'Cabang' : 'Pusat',
+                                    ),
                                 ],
                               ),
                             ),
@@ -947,6 +1021,7 @@ class _MapsPageState extends State<MapsPage>
         const Cabang(
           nama: 'Lokasi Cabang',
           alamat: 'Alamat tidak ditemukan',
+          email: 'Email tidak ditemukan',
           lat: -6.2088,
           lng: 106.8456,
           status: 'Tidak diketahui',
@@ -1099,16 +1174,36 @@ class _MapsPageState extends State<MapsPage>
 
                       const SizedBox(height: 10),
 
-                      // ================================
-                      // STATUS
-                      // ================================
-                      statusBadge(context, cabangData.status),
+                      Row(
+                        children: [
 
-                      const SizedBox(height: 8),
+                          // ================================
+                          // STATUS
+                          // ================================
 
-                      // ================================
-                      // COORDINATE
-                      // ================================
+                          statusBadge(
+                            context, 
+                            cabangData.status == 'C' ? 'Cabang' : 'Pusat',
+                          ),
+
+                          const SizedBox(width: 5),
+
+                          // ================================
+                          // EMAIL
+                          // ================================
+
+                          statusBadge(context, cabangData.email),
+
+                          const SizedBox(height: 8),
+                        ]
+                      ),
+
+                      SizedBox(height: 8),
+
+                          // ================================
+                          // COORDINATE
+                          // ================================
+
                       statusBadge(
                         context,
                         'Koordinat: ${cabangData.lat}, ${cabangData.lng}',
@@ -1119,6 +1214,7 @@ class _MapsPageState extends State<MapsPage>
                       // ================================
                       // CENTER MAP
                       // ================================
+
                       SizedBox(
                         width: double.infinity,
                         child: Button(
