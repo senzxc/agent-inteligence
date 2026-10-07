@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:3000';
+  static const String baseUrl = 'http://163.128.212.19:5003';
 
   static Future<Map<String, dynamic>> login(
     String stambuk,
