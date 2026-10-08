@@ -731,11 +731,8 @@ class _HomePageState extends State<HomePage> {
     final user = arguments is Map ? arguments : const <String, dynamic>{};
     final nama = (user['NAMA'] ?? user['nama'])?.toString().trim();
     final displayName = nama == null || nama.isEmpty ? 'Admin Cabang' : nama;
-    final namaKantor = _isLoadingKantor
-      ? 'Memuat...'
-      : _kantorList.isEmpty
-      ? 'Tidak tersedia'
-      : _kantorList.first['NAMA_KANTOR']?.toString() ?? '-';
+    final kodeKantor =
+      (user['KANTOR'] ?? user['kantor'])?.toString().trim() ?? '-';
 
     // const cabangList = [
     //   Cabang(
@@ -828,15 +825,15 @@ class _HomePageState extends State<HomePage> {
                       color: Colors.white,
                     ),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 4),
 
                   Text(
-                    'Kantor: $namaKantor',
+                    'Kantor: $kodeKantor',
                     style: theme.typography.small.copyWith(
                       color: Colors.white.withValues(alpha: 0.8),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 18),
 
                   Container(
                     padding: const EdgeInsets.symmetric(
