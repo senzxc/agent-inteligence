@@ -1,8 +1,10 @@
 import 'package:flutter/services.dart';
+
 import 'package:flutter_map/flutter_map.dart' as flutter_map;
 import 'package:flutter_svg/svg.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
+
 import 'services/api_service.dart';
 
 // import 'package:lottie/lottie.dart';
@@ -280,9 +282,7 @@ class _LoginPageState extends State<LoginPage> {
           arguments: Map<String, dynamic>.from(data['user'] as Map),
         );
       } else {
-        final message = data is Map
-            ? data['message']?.toString()
-            : null;
+        final message = data is Map ? data['message']?.toString() : null;
         _showLoginError(message ?? 'Stambuk atau password salah.');
       }
     } catch (error) {
@@ -438,6 +438,7 @@ class _LoginPageState extends State<LoginPage> {
                                       height: 14,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
+                                        color: Colors.white,
                                       ),
                                     ),
                                 ],
@@ -656,18 +657,32 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-   List<Map<String, dynamic>> _kantorList = [];
+  List<Map<String, dynamic>> _kantorList = [];
   bool _isLoadingKantor = true;
+  bool _hasLoadedKantor = false;
 
   @override
-  void initState() {
-    super.initState();
-    _loadKantor();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_hasLoadedKantor) return;
+    _hasLoadedKantor = true;
+
+    final arguments = ModalRoute.of(context)?.settings.arguments;
+    final user = arguments is Map ? arguments : const <String, dynamic>{};
+    final kodeKantor = (user['KANTOR'] ?? user['kantor'])?.toString().trim();
+
+    if (kodeKantor == null || kodeKantor.isEmpty) {
+      _isLoadingKantor = false;
+      debugPrint('Kode kantor tidak ditemukan pada data user.');
+      return;
+    }
+
+    _loadKantor(kodeKantor);
   }
 
-  Future<void> _loadKantor() async {
+  Future<void> _loadKantor(String kodeKantor) async {
     try {
-      final result = await ApiService.getKantor();
+      final result = await ApiService.getKantor(kodeKantor);
 
       final statusCode = result['statusCode'];
       final data = result['data'];
@@ -716,6 +731,11 @@ class _HomePageState extends State<HomePage> {
     final user = arguments is Map ? arguments : const <String, dynamic>{};
     final nama = (user['NAMA'] ?? user['nama'])?.toString().trim();
     final displayName = nama == null || nama.isEmpty ? 'Admin Cabang' : nama;
+    final namaKantor = _isLoadingKantor
+      ? 'Memuat...'
+      : _kantorList.isEmpty
+      ? 'Tidak tersedia'
+      : _kantorList.first['NAMA_KANTOR']?.toString() ?? '-';
 
     // const cabangList = [
     //   Cabang(
@@ -809,6 +829,15 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                   const SizedBox(height: 18),
+
+                  Text(
+                    'Kantor: $namaKantor',
+                    style: theme.typography.small.copyWith(
+                      color: Colors.white.withValues(alpha: 0.8),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -861,11 +890,13 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: cabangList.length,
-                itemBuilder: (context, index) {
-                  final cabang = cabangList[index];
+              child: _isLoadingKantor
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemCount: cabangList.length,
+                      itemBuilder: (context, index) {
+                        final cabang = cabangList[index];
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
@@ -927,9 +958,9 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                   const SizedBox(height: 8),
                                   statusBadge(
-                                    context, 
+                                    context,
                                     cabang.status == 'C' ? 'Cabang' : 'Pusat',
-                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -944,8 +975,8 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   );
-                },
-              ),
+                      },
+                    ),
             ),
           ],
         ),
@@ -1176,13 +1207,12 @@ class _MapsPageState extends State<MapsPage>
 
                       Row(
                         children: [
-
                           // ================================
                           // STATUS
                           // ================================
 
                           statusBadge(
-                            context, 
+                            context,
                             cabangData.status == 'C' ? 'Cabang' : 'Pusat',
                           ),
 
@@ -1191,19 +1221,17 @@ class _MapsPageState extends State<MapsPage>
                           // ================================
                           // EMAIL
                           // ================================
-
                           statusBadge(context, cabangData.email),
 
                           const SizedBox(height: 8),
-                        ]
+                        ],
                       ),
 
                       SizedBox(height: 8),
 
-                          // ================================
-                          // COORDINATE
-                          // ================================
-
+                      // ================================
+                      // COORDINATE
+                      // ================================
                       statusBadge(
                         context,
                         'Koordinat: ${cabangData.lat}, ${cabangData.lng}',
@@ -1214,7 +1242,6 @@ class _MapsPageState extends State<MapsPage>
                       // ================================
                       // CENTER MAP
                       // ================================
-
                       SizedBox(
                         width: double.infinity,
                         child: Button(
