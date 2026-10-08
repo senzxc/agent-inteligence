@@ -150,6 +150,15 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.get('/api/kantor', async (req, res) => {
+    const { kodeKantor } = req.query;
+
+    if (!kodeKantor) {
+        return res.status(400).json({
+            success: false,
+            message: 'kodeKantor wajib diisi',
+        });
+    }
+
     let connection;
 
     try {
@@ -171,8 +180,9 @@ app.get('/api/kantor', async (req, res) => {
                 LONGITUDE,
                 DISTANCE
             FROM DATA_KANTOR
+            WHERE KODE_KANTOR = :kodeKantor
             `,
-            {},
+            { kodeKantor: String(kodeKantor) },
             {
                 outFormat: require('oracledb').OUT_FORMAT_OBJECT,
             }
