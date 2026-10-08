@@ -233,27 +233,37 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoggingIn = false;
 
   void _showLoginError(String message) {
-    showToast(
-      context: context,
-      builder: (context, overlay) {
-        return SurfaceCard(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                LucideIcons.circleAlert,
-                size: 18,
-                color: Theme.of(context).colorScheme.destructive,
-              ),
-              const SizedBox(width: 8),
-              Flexible(child: Text(message)),
-            ],
-          ),
-        );
-      },
-    );
-  }
+  showToast(
+    context: context,
+    location: ToastLocation.topRight,
+    dismissible: false,
+    curve: Curves.easeOutCubic,
+    entryDuration: const Duration(milliseconds: 500),
+    showDuration: const Duration(seconds: 3),
+    builder: (context, overlay) {
+      return SurfaceCard(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              LucideIcons.circleAlert,
+              size: 18,
+              color: Theme.of(context).colorScheme.destructive,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(message),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
 
   Future<void> _handleLogin() async {
     final stambuk = _usernameController.text.trim();
