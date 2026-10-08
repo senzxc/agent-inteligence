@@ -666,23 +666,12 @@ class _HomePageState extends State<HomePage> {
     super.didChangeDependencies();
     if (_hasLoadedKantor) return;
     _hasLoadedKantor = true;
-
-    final arguments = ModalRoute.of(context)?.settings.arguments;
-    final user = arguments is Map ? arguments : const <String, dynamic>{};
-    final kodeKantor = (user['KANTOR'] ?? user['kantor'])?.toString().trim();
-
-    if (kodeKantor == null || kodeKantor.isEmpty) {
-      _isLoadingKantor = false;
-      debugPrint('Kode kantor tidak ditemukan pada data user.');
-      return;
-    }
-
-    _loadKantor(kodeKantor);
+    _loadKantor();
   }
 
-  Future<void> _loadKantor(String kodeKantor) async {
+  Future<void> _loadKantor() async {
     try {
-      final result = await ApiService.getKantor(kodeKantor);
+      final result = await ApiService.getKantor();
 
       final statusCode = result['statusCode'];
       final data = result['data'];
