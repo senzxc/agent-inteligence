@@ -334,13 +334,10 @@ class _LoginPageState extends State<LoginPage> {
                             // LOTTIE ANIMATION
                             // ====================================
 
-                            Positioned(
-                              top: 0,
-                              child: SvgPicture.asset(
-                                'assets/animations/Bumiputera.svg',
-                                width: 80,
-                                height: 80,
-                              ),
+                            SvgPicture.asset(
+                              'assets/animations/Bumiputera.svg',
+                              width: 80,
+                              height: 80,
                             ),
 
                             const SizedBox(height: 25),
