@@ -26,9 +26,11 @@ class ApiService {
       'data': data,
     };
   }
-    static Future<Map<String, dynamic>> getKantor() async {
+  static Future<Map<String, dynamic>> getKantor(String kodeKantor) async {
     final response = await http.get(
-      Uri.parse('$baseUrl/api/kantor'),
+      Uri.parse('$baseUrl/api/kantor').replace(
+        queryParameters: {'kodeKantor': kodeKantor},
+      ),
     );
 
     final data = jsonDecode(response.body);
