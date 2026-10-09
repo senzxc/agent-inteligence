@@ -65,7 +65,12 @@ extension StringExtension on String {
   }
 }
 
-Widget statusBadge(BuildContext context, String text, {IconData? icon}) {
+Widget statusBadge(
+  BuildContext context,
+  String text, {
+  IconData? icon,
+  bool ellipsis = false,
+}) {
   final theme = Theme.of(context);
 
   return Container(
@@ -82,7 +87,17 @@ Widget statusBadge(BuildContext context, String text, {IconData? icon}) {
           Icon(icon, size: 14, color: theme.colorScheme.primary),
           const SizedBox(width: 6),
         ],
-        Text(text, style: theme.typography.small),
+        if (ellipsis)
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.typography.small,
+            ),
+          )
+        else
+          Text(text, style: theme.typography.small),
       ],
     ),
   );
@@ -233,37 +248,32 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoggingIn = false;
 
   void _showLoginError(String message) {
-  showToast(
-    context: context,
-    location: ToastLocation.topRight,
-    dismissible: false,
-    curve: Curves.easeOutCubic,
-    entryDuration: const Duration(milliseconds: 500),
-    showDuration: const Duration(seconds: 3),
-    builder: (context, overlay) {
-      return SurfaceCard(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              LucideIcons.circleAlert,
-              size: 18,
-              color: Theme.of(context).colorScheme.destructive,
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(message),
-            ),
-          ],
-        ),
-      );
-    },
-  );
-}
+    showToast(
+      context: context,
+      location: ToastLocation.topRight,
+      dismissible: false,
+      curve: Curves.easeOutCubic,
+      entryDuration: const Duration(milliseconds: 500),
+      showDuration: const Duration(seconds: 3),
+      builder: (context, overlay) {
+        return SurfaceCard(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                LucideIcons.circleAlert,
+                size: 18,
+                color: Theme.of(context).colorScheme.destructive,
+              ),
+              const SizedBox(width: 8),
+              Flexible(child: Text(message)),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   Future<void> _handleLogin() async {
     final stambuk = _usernameController.text.trim();
@@ -728,7 +738,7 @@ class _HomePageState extends State<HomePage> {
     final nama = (user['NAMA'] ?? user['nama'])?.toString().trim();
     final displayName = nama == null || nama.isEmpty ? 'Admin Cabang' : nama;
     final kodeKantor =
-      (user['KANTOR'] ?? user['kantor'])?.toString().trim() ?? '-';
+        (user['KANTOR'] ?? user['kantor'])?.toString().trim() ?? '-';
 
     // const cabangList = [
     //   Cabang(
@@ -891,83 +901,88 @@ class _HomePageState extends State<HomePage> {
                       itemBuilder: (context, index) {
                         final cabang = cabangList[index];
 
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: ButtonStyleOverride(
-                      decoration: (_, _, defaultDecoration) {
-                        if (defaultDecoration is BoxDecoration) {
-                          return defaultDecoration.copyWith(
-                            boxShadow: const [_softComponentShadow],
-                          );
-                        }
-                        return defaultDecoration;
-                      },
-                      child: CardButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            ShadcnPageRoute<void>(
-                              settings: RouteSettings(
-                                name: '/maps',
-                                arguments: cabang,
-                              ),
-                              builder: (context) => const MapsPage(),
-                            ),
-                          );
-                        },
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.primary.withValues(
-                                  alpha: 0.15,
-                                ),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Icon(
-                                LucideIcons.store,
-                                color: theme.colorScheme.primary,
-                                size: 24,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: ButtonStyleOverride(
+                            decoration: (_, _, defaultDecoration) {
+                              if (defaultDecoration is BoxDecoration) {
+                                return defaultDecoration.copyWith(
+                                  boxShadow: const [_softComponentShadow],
+                                );
+                              }
+                              return defaultDecoration;
+                            },
+                            child: CardButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  ShadcnPageRoute<void>(
+                                    settings: RouteSettings(
+                                      name: '/maps',
+                                      arguments: cabang,
+                                    ),
+                                    builder: (context) => const MapsPage(),
+                                  ),
+                                );
+                              },
+                              child: Row(
                                 children: [
-                                  Text(
-                                    cabang.nama,
-                                    style: theme.typography.p.copyWith(
-                                      fontWeight: FontWeight.bold,
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.primary
+                                          .withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(
+                                      LucideIcons.store,
+                                      color: theme.colorScheme.primary,
+                                      size: 24,
                                     ),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    cabang.alamat,
-                                    style: theme.typography.small.copyWith(
-                                      color: theme.colorScheme.mutedForeground,
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          cabang.nama,
+                                          style: theme.typography.p.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          cabang.alamat,
+                                          style: theme.typography.small
+                                              .copyWith(
+                                                color: theme
+                                                    .colorScheme
+                                                    .mutedForeground,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        statusBadge(
+                                          context,
+                                          cabang.status == 'C'
+                                              ? 'Cabang'
+                                              : 'Pusat',
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
-                                  statusBadge(
-                                    context,
-                                    cabang.status == 'C' ? 'Cabang' : 'Pusat',
+                                  const SizedBox(width: 12),
+                                  Icon(
+                                    LucideIcons.chevronRight,
+                                    color: theme.colorScheme.mutedForeground,
+                                    size: 20,
                                   ),
                                 ],
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            Icon(
-                              LucideIcons.chevronRight,
-                              color: theme.colorScheme.mutedForeground,
-                              size: 20,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
+                          ),
+                        );
                       },
                     ),
             ),
@@ -1214,7 +1229,13 @@ class _MapsPageState extends State<MapsPage>
                           // ================================
                           // EMAIL
                           // ================================
-                          statusBadge(context, cabangData.email),
+                          Flexible(
+                            child: statusBadge(
+                              context,
+                              cabangData.email,
+                              ellipsis: true,
+                            ),
+                          ),
 
                           const SizedBox(height: 8),
                         ],
