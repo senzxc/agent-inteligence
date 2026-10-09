@@ -46,5 +46,6 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
-backend/server.js
 backend/.env
+backend/node_modules/
+node_modules
