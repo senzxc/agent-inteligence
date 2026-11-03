@@ -26,6 +26,24 @@ const activeSessions = new Map();
 // Lokasi agen aktif: ID agen -> data lokasi
 const activeAgents = new Map();
 
+// Lokasi terakhir agen, termasuk agen yang sudah berhenti tracking
+const lastKnownAgents = new Map();
+
+function stopAgentTracking(stambuk) {
+    const agent = activeAgents.get(stambuk);
+    if (!agent) return lastKnownAgents.get(stambuk) ?? null;
+
+    const offlineAgent = {
+        ...agent,
+        status: 'offline',
+        isTracking: false,
+        stoppedAt: new Date().toISOString(),
+    };
+    activeAgents.delete(stambuk);
+    lastKnownAgents.set(stambuk, offlineAgent);
+    return offlineAgent;
+}
+
 // ========================================
 // PENYIMPANAN TUGAS AGEN (JSON)
 // ========================================
@@ -475,6 +493,7 @@ app.get('/api/auth/me', authenticate, (req, res) => {
 app.post('/api/logout', authenticate, (req, res) => {
     const token = req.headers.authorization.slice(7);
 
+    stopAgentTracking(String(getAuthenticatedUserId(req.authUser) ?? ''));
     activeSessions.delete(token);
 
     return res.json({
@@ -802,7 +821,6 @@ app.post(
             nama: user.NAMA_AGEN ?? user.NAMA,
             kantor: user.KODE_KANTOR ?? user.KANTOR,
             level: user.C_AGENCY_JABATAN ?? user.LEVEL_USER,
-            status: 'active',
             latitude: null,
             longitude: null,
             accuracy: null,
@@ -811,6 +829,8 @@ app.post(
             locationWarnings: [],
             startedAt: new Date().toISOString(),
             lastUpdated: null,
+            status: 'active',
+            isTracking: true,
         };
 
         activeAgents.set(stambuk, agent);
@@ -918,8 +938,11 @@ app.post(
                 : null;
 
         agent.lastUpdated = receivedAt.toISOString();
+        agent.status = 'active';
+        agent.isTracking = true;
 
         activeAgents.set(stambuk, agent);
+        lastKnownAgents.set(stambuk, { ...agent });
 
         return res.json({
             success: true,
@@ -939,22 +962,16 @@ app.post(
     requireRoles('HEAD_MARKETING', 'HEAD_AGENT', 'AGENT'),
     (req, res) => {
         const stambuk = String(getAuthenticatedUserId(req.authUser) ?? '');
-        const agent = activeAgents.get(stambuk);
-
-        if (!agent) {
-            return res.status(404).json({
-                success: false,
-                message: 'Tidak ada tracking aktif',
-            });
-        }
-
-        activeAgents.delete(stambuk);
+        const agent = stopAgentTracking(stambuk);
 
         return res.json({
             success: true,
-            message: 'Tracking berhasil dihentikan',
+            message: agent
+                ? 'Tracking berhasil dihentikan'
+                : 'Tidak ada tracking aktif',
             stambuk,
-            stoppedAt: new Date().toISOString(),
+            stoppedAt: agent?.stoppedAt ?? null,
+            data: agent,
         });
     }
 );
@@ -974,7 +991,11 @@ app.get(
             ? String(req.query.kantor).trim().toUpperCase()
             : null;
 
-        let agents = Array.from(activeAgents.values());
+        const latestAgents = new Map(lastKnownAgents);
+        for (const [agentId, agent] of activeAgents) {
+            latestAgents.set(agentId, agent);
+        }
+        let agents = Array.from(latestAgents.values());
 
         const subordinateRoles = getAgencySubordinateRoles(
             req.authUser?.C_AGENCY_JABATAN
