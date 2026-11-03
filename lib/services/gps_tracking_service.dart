@@ -24,6 +24,7 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
 
   StreamSubscription<Position>? _positionSubscription;
   StreamSubscription<ServiceStatus>? _gpsStatusSubscription;
+  final Set<Future<void>> _pendingLocationUpdates = {};
   Position? _latestPosition;
   String? _latestLocationWarning;
   bool? _notificationsAllowed;
@@ -41,7 +42,8 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
   String? get latestLocationWarning => _latestLocationWarning;
   bool? get notificationsAllowed => _notificationsAllowed;
   bool? get backgroundLocationAllowed => _backgroundLocationAllowed;
-  bool get _isAndroid => !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  bool get _isAndroid =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   Future<void> ensureGpsReady() async {
     // Ulangi permintaan sistem sampai GPS aktif.
@@ -68,8 +70,7 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
       );
     }
 
-    if (_isAndroid &&
-        permission == LocationPermission.whileInUse) {
+    if (_isAndroid && permission == LocationPermission.whileInUse) {
       permission = await Geolocator.requestPermission();
     }
 
@@ -199,7 +200,7 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
         ).listen(
           (position) {
             _publishPosition(position);
-            unawaited(_sendLocation(position));
+            unawaited(_queueLocationUpdate(position));
           },
           onError: (Object error) {
             // Pemulihan akan dicoba saat status GPS berubah
@@ -228,8 +229,10 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
         ),
       );
 
+      if (!_isTracking) return;
       _publishPosition(position);
-      await _sendLocation(position);
+      await _queueLocationUpdate(position);
+      if (!_isTracking) return;
       await _startPositionStream();
     } catch (error) {
       debugPrint('Pemulihan GPS gagal: $error');
@@ -268,6 +271,27 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
   Future<void> disposeTrackingStream() async {
     await stopLocationUpdates();
 
+    await _disposeGpsMonitoring();
+  }
+
+  Future<void> stopTracking() async {
+    final wasTracking = _isTracking;
+    await stopLocationUpdates();
+    await Future.wait(_pendingLocationUpdates.toList());
+    try {
+      await ApiService.stopTracking();
+    } catch (_) {
+      if (wasTracking) {
+        _isTracking = true;
+        _registerGpsMonitoring();
+        await _startPositionStream();
+      }
+      rethrow;
+    }
+    await _disposeGpsMonitoring();
+  }
+
+  Future<void> _disposeGpsMonitoring() async {
     await _gpsStatusSubscription?.cancel();
     _gpsStatusSubscription = null;
 
@@ -277,10 +301,18 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _queueLocationUpdate(Position position) {
+    late final Future<void> update;
+    update = _sendLocation(position).whenComplete(() {
+      _pendingLocationUpdates.remove(update);
+    });
+    _pendingLocationUpdates.add(update);
+    return update;
+  }
+
   Future<void> stopLocationUpdates() async {
+    _isTracking = false;
     await _positionSubscription?.cancel();
     _positionSubscription = null;
-
-    _isTracking = false;
   }
 }

@@ -631,29 +631,42 @@ class _KantorListPageState extends State<KantorListPage>
     );
   }
 
-  void _fitMapToOffices() {
+  void _fitMapToOffices({bool animate = false}) {
     final locations = _kantorList
         .map(_coordinatesFor)
         .whereType<LatLng>()
         .toList();
-    if (locations.isEmpty) return;
+    if (locations.isEmpty || !_mapReady) return;
 
+    late final LatLng targetCenter;
+    late final double targetZoom;
     if (locations.length == 1 ||
         locations.every(
           (location) =>
               location.latitude == locations.first.latitude &&
               location.longitude == locations.first.longitude,
         )) {
-      _mapController.move(locations.first, 9);
+      targetCenter = locations.first;
+      targetZoom = 9;
+    } else {
+      final fittedCamera = flutter_map.CameraFit.bounds(
+        bounds: flutter_map.LatLngBounds.fromPoints(locations),
+        padding: const EdgeInsets.all(32),
+      ).fit(_mapController.camera);
+      targetCenter = fittedCamera.center;
+      targetZoom = fittedCamera.zoom;
+    }
+
+    if (!animate) {
+      _mapController.move(targetCenter, targetZoom);
       return;
     }
 
-    _mapController.fitCamera(
-      flutter_map.CameraFit.bounds(
-        bounds: flutter_map.LatLngBounds.fromPoints(locations),
-        padding: const EdgeInsets.all(32),
-      ),
-    );
+    _animationStartCenter = _mapController.camera.center;
+    _animationTargetCenter = targetCenter;
+    _animationStartZoom = _mapController.camera.zoom;
+    _animationTargetZoom = targetZoom;
+    _mapCenterAnimationController.forward(from: 0);
   }
 
   void _onMapReady() {
@@ -803,7 +816,7 @@ class _KantorListPageState extends State<KantorListPage>
                     shape: const CircleBorder(),
                     child: IconButton(
                       tooltip: 'Tampilkan seluruh kantor',
-                      onPressed: _fitMapToOffices,
+                      onPressed: () => _fitMapToOffices(animate: true),
                       icon: const Icon(
                         Icons.zoom_out_map_rounded,
                         color: Color(0xFF0D47A1),

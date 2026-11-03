@@ -1088,10 +1088,24 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> {
     );
     if (shouldLogout != true || !mounted) return;
 
-    await ApiService.clearSession();
-    await AgentGpsTrackingService.instance.disposeTrackingStream();
+    try {
+      await AgentGpsTrackingService.instance.stopTracking();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Gagal menghentikan tracking: '
+            '${error.toString().replaceFirst('Exception: ', '')}',
+          ),
+        ),
+      );
+      return;
+    }
     if (!mounted) return;
 
+    await ApiService.clearSession();
+    if (!mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   }
 

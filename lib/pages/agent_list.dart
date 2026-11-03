@@ -632,6 +632,7 @@ class _AgentListPageState extends State<AgentListPage>
                 name: name,
                 identity: agentId,
                 isOnline: isOnline,
+                offlineColor: const Color(0xFF64748B),
               ),
             ),
           ),
@@ -1319,13 +1320,12 @@ class _AgentListPageState extends State<AgentListPage>
     const horizontalPadding = 8.0;
     const menuGap = 8.0;
     const menuMargin = 8.0;
-    final isTracking =
-        agent['isTracking'] == true || agent['isTracking']?.toString() == '1';
+    final hasLocation = _agentCoordinates(agent) != null;
     final phone = _agentPhoneNumber(agent);
     final menuWidth = ((screenSize.width - horizontalPadding * 2 - menuGap) / 2)
         .clamp(112.0, 166.0);
     final itemWidth = menuWidth - horizontalPadding * 2;
-    final menuHeight = (isTracking ? 248.0 : 200.0) - (phone.isEmpty ? 48 : 0);
+    final menuHeight = (hasLocation ? 248.0 : 200.0) - (phone.isEmpty ? 48 : 0);
 
     final requestedLeft = tapPosition.dx < screenSize.width / 2
         ? tapPosition.dx
@@ -1391,7 +1391,7 @@ class _AgentListPageState extends State<AgentListPage>
             width: itemWidth,
           ),
         ),
-        if (isTracking)
+        if (hasLocation)
           PopupMenuItem(
             value: _AgentMenuAction.location,
             enabled: false,
@@ -1849,6 +1849,8 @@ class _AgentListPageState extends State<AgentListPage>
   String _agentLastUpdateText(Map<String, dynamic> agent) {
     // Sesuaikan nama field jika API menggunakan nama lain.
     final candidates = [
+      'lastUpdated',
+      'LAST_UPDATED',
       'LAST_UPDATE',
       'last_update',
       'UPDATED_AT',
@@ -2426,6 +2428,7 @@ class _AgentListPageState extends State<AgentListPage>
     _animationStartCenter = _mapController.camera.center;
     _animationTargetCenter = location;
     _animationStartZoom = _mapController.camera.zoom;
+    _animationTargetZoom = 16;
     _centerAnimationController.forward(from: 0);
   }
 
@@ -2494,14 +2497,20 @@ class _AgentListPageState extends State<AgentListPage>
                 .toString()
                 .trim();
         if (agentId.isNotEmpty) {
-          trackingByAgent[agentId] = tracking;
+          trackingByAgent[agentId.toUpperCase()] = tracking;
         }
       }
 
       final agents = profileRows.whereType<Map>().map((item) {
         final profile = Map<String, dynamic>.from(item);
         final agentId = (profile['NOMOR_AGEN'] ?? '').toString().trim();
-        final tracking = trackingByAgent[agentId];
+        final tracking = trackingByAgent[agentId.toUpperCase()];
+        final trackingStatus = tracking?['status']?.toString().toLowerCase();
+        final isTracking = tracking == null
+            ? false
+            : tracking['isTracking'] is bool
+            ? tracking['isTracking'] == true
+            : trackingStatus != 'offline';
         return {
           ...profile,
           if (tracking != null) ...{
@@ -2511,7 +2520,7 @@ class _AgentListPageState extends State<AgentListPage>
             'speed': tracking['speed'],
             'lastUpdated': tracking['lastUpdated'],
           },
-          'isTracking': tracking != null,
+          'isTracking': isTracking,
         };
       }).toList();
       if (!mounted) return;

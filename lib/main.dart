@@ -782,9 +782,25 @@ void _showLogoutDialog(BuildContext context) {
                                     onPressed: () async {
                                       await closeOverlay(dialogContext);
                                       if (!context.mounted) return;
+                                      try {
+                                        await AgentGpsTrackingService.instance
+                                            .stopTracking();
+                                      } catch (error) {
+                                        if (!context.mounted) return;
+                                        material.ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          material.SnackBar(
+                                            content: Text(
+                                              'Gagal menghentikan tracking: '
+                                              '${error.toString().replaceFirst('Exception: ', '')}',
+                                            ),
+                                          ),
+                                        );
+                                        return;
+                                      }
+                                      if (!context.mounted) return;
                                       await ApiService.clearSession();
-                                      await AgentGpsTrackingService.instance
-                                          .disposeTrackingStream();
                                       if (!context.mounted) return;
                                       Navigator.pushReplacement(
                                         context,
@@ -1093,11 +1109,13 @@ class _HomePageState extends State<HomePage> {
     required String appRole,
     required String statusFilter,
     required bool viewAllBranches,
+    bool showIndonesiaMapButton = false,
   }) {
     final arguments = Map<String, dynamic>.from(user)
       ..['APP_ROLE'] = appRole
       ..['INITIAL_STATUS_FILTER'] = statusFilter
-      ..['VIEW_ALL_BRANCHES'] = viewAllBranches;
+      ..['VIEW_ALL_BRANCHES'] = viewAllBranches
+      ..['SHOW_INDONESIA_MAP_BUTTON'] = showIndonesiaMapButton;
     Navigator.pushNamed(context, '/agent-list', arguments: arguments);
   }
 
@@ -1527,29 +1545,30 @@ class _HomePageState extends State<HomePage> {
                         appRole: appRole,
                         statusFilter: 'all',
                         viewAllBranches: appRole == 'HEAD_MARKETING',
+                        showIndonesiaMapButton: true,
                       ),
                     ),
-                    if (appRole == 'HEAD_MARKETING' || appRole == 'HEAD_AGENT')
-                      _buildDashboardActionTile(
-                        label: 'Pantau Lokasi Agen',
-                        icon: LucideIcons.map,
-                        gradientColors: _agentMonitoringGradientColors,
-                        hovered: _isAgentMonitoringHovered,
-                        pressed: _isAgentMonitoringPressed,
-                        onHoverChanged: (value) {
-                          setState(() => _isAgentMonitoringHovered = value);
-                        },
-                        onPressedChanged: (value) {
-                          setState(() => _isAgentMonitoringPressed = value);
-                        },
-                        onTap: () {
-                          Navigator.pushNamed(
-                            context,
-                            '/agent-monitoring',
-                            arguments: user,
-                          );
-                        },
-                      ),
+                    // if (appRole == 'HEAD_MARKETING' || appRole == 'HEAD_AGENT')
+                    //   _buildDashboardActionTile(
+                    //     label: 'Pantau Lokasi Agen',
+                    //     icon: LucideIcons.map,
+                    //     gradientColors: _agentMonitoringGradientColors,
+                    //     hovered: _isAgentMonitoringHovered,
+                    //     pressed: _isAgentMonitoringPressed,
+                    //     onHoverChanged: (value) {
+                    //       setState(() => _isAgentMonitoringHovered = value);
+                    //     },
+                    //     onPressedChanged: (value) {
+                    //       setState(() => _isAgentMonitoringPressed = value);
+                    //     },
+                    //     onTap: () {
+                    //       Navigator.pushNamed(
+                    //         context,
+                    //         '/agent-monitoring',
+                    //         arguments: user,
+                    //       );
+                    //     },
+                    //   ),
                     _buildDashboardStatTile(
                       icon: material.Icons.wifi_rounded,
                       label: 'Agen Online',
@@ -1563,6 +1582,7 @@ class _HomePageState extends State<HomePage> {
                         appRole: appRole,
                         statusFilter: 'online',
                         viewAllBranches: appRole == 'HEAD_MARKETING',
+                        showIndonesiaMapButton: true,
                       ),
                     ),
                     _buildDashboardStatTile(
@@ -1578,6 +1598,7 @@ class _HomePageState extends State<HomePage> {
                         appRole: appRole,
                         statusFilter: 'offline',
                         viewAllBranches: appRole == 'HEAD_MARKETING',
+                        showIndonesiaMapButton: true,
                       ),
                     ),
                   ],
