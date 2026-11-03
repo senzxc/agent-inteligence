@@ -1498,22 +1498,22 @@ class _HomePageState extends State<HomePage> {
                         arguments: user,
                       ),
                     ),
-                    _buildDashboardActionTile(
-                      label: 'Mulai Bertugas Agen',
-                      icon: LucideIcons.mapPin,
-                      gradientColors: _brandGradientColors,
-                      hovered: _isAgentTrackingHovered,
-                      pressed: _isAgentTrackingPressed,
-                      onHoverChanged: (value) {
-                        setState(() => _isAgentTrackingHovered = value);
-                      },
-                      onPressedChanged: (value) {
-                        setState(() => _isAgentTrackingPressed = value);
-                      },
-                      onTap: () {
-                        Navigator.pushNamed(context, '/agent-tracking');
-                      },
-                    ),
+                    // _buildDashboardActionTile(
+                    //   label: 'Mulai Bertugas Agen',
+                    //   icon: LucideIcons.mapPin,
+                    //   gradientColors: _brandGradientColors,
+                    //   hovered: _isAgentTrackingHovered,
+                    //   pressed: _isAgentTrackingPressed,
+                    //   onHoverChanged: (value) {
+                    //     setState(() => _isAgentTrackingHovered = value);
+                    //   },
+                    //   onPressedChanged: (value) {
+                    //     setState(() => _isAgentTrackingPressed = value);
+                    //   },
+                    //   onTap: () {
+                    //     Navigator.pushNamed(context, '/agent-tracking');
+                    //   },
+                    // ),
                     _buildDashboardStatTile(
                       icon: LucideIcons.users,
                       label: 'Total Agen',
