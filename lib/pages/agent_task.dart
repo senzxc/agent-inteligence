@@ -1211,6 +1211,12 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                   icon: Icons.notes_rounded,
                                   alignLabelWithHint: true,
                                 ),
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'Deskripsi tugas wajib diisi.';
+                                  }
+                                  return null;
+                                },
                               ),
                               const SizedBox(height: 16),
                               Container(
