@@ -744,29 +744,76 @@ class _AgentListPageState extends State<AgentListPage>
                 ],
               ),
               const SizedBox(height: 8),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (phone.isNotEmpty) ...[
-                    _buildMapAgentChatButton(phone),
-                    const SizedBox(width: 10),
-                  ],
-                  FilledButton.icon(
-                    onPressed: () => _showAgentLocation(agent),
-                    icon: const Icon(Icons.my_location_rounded, size: 17),
-                    label: const Text('Pusatkan'),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(112, 42),
-                      backgroundColor: const Color(0xFF1565C0)
-                          .withValues(alpha: 0.14),
-                      foregroundColor: const Color(0xFF0D47A1),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (phone.isNotEmpty) ...[
+                      _buildMapAgentChatButton(phone),
+                      const SizedBox(width: 8),
+                    ],
+                    FilledButton.icon(
+                      onPressed: () => _showAgentLocation(agent),
+                      icon: const Icon(Icons.my_location_rounded, size: 17),
+                      label: const Text('Pusatkan'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(112, 42),
+                        backgroundColor: const Color(0xFF1565C0)
+                            .withValues(alpha: 0.14),
+                        foregroundColor: const Color(0xFF0D47A1),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      onPressed: () => _showAgentDetails(agent),
+                      icon: const Icon(Icons.badge_outlined, size: 17),
+                      label: const Text('Detail Agen'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 42),
+                        backgroundColor: const Color(0xFF1565C0)
+                            .withValues(alpha: 0.14),
+                        foregroundColor: const Color(0xFF0D47A1),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      onPressed: () => _showAgentLocationDetails(agent),
+                      icon: const Icon(Icons.location_on_outlined, size: 17),
+                      label: const Text('Detail Lokasi'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 42),
+                        backgroundColor: const Color(0xFF1565C0)
+                            .withValues(alpha: 0.14),
+                        foregroundColor: const Color(0xFF0D47A1),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 10),
               const Divider(height: 1, color: Color(0xFFE2E8F0)),
@@ -792,12 +839,6 @@ class _AgentListPageState extends State<AgentListPage>
                   icon: Icons.email_outlined,
                   label: 'Email',
                   value: email,
-                ),
-              if (address.isNotEmpty)
-                _buildMapAgentInfoRow(
-                  icon: Icons.home_outlined,
-                  label: 'Alamat',
-                  value: address,
                 ),
               _buildMapAgentInfoRow(
                 icon: Icons.update_rounded,
@@ -1022,36 +1063,43 @@ class _AgentListPageState extends State<AgentListPage>
   }
 
   Widget _buildMapAgentChatButton(String phone) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
+    return SizedBox(
+      height: 42,
+      child: Material(
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(14),
-        onTap: () => _openWhatsAppChat(phone),
-        child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF17BE65), Color(0xFF25D366)],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            borderRadius: BorderRadius.all(Radius.circular(14)),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FaIcon(FontAwesomeIcons.whatsapp, color: Colors.white, size: 19),
-              SizedBox(width: 7),
-              Text(
-                'Chat Agen',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => _openWhatsAppChat(phone),
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF17BE65), Color(0xFF25D366)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
               ),
-            ],
+              borderRadius: BorderRadius.all(Radius.circular(14)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FaIcon(
+                  FontAwesomeIcons.whatsapp,
+                  color: Colors.white,
+                  size: 17,
+                ),
+                SizedBox(width: 7),
+                Text(
+                  'Chat Agen',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
