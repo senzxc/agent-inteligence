@@ -221,6 +221,7 @@ class ApiService {
     required double longitude,
     required double accuracy,
     required double speed,
+    bool isMocked = false,
   }) {
     return _trackingRequest(
       'POST',
@@ -230,6 +231,7 @@ class ApiService {
         'longitude': longitude,
         'accuracy': accuracy,
         'speed': speed,
+        'isMocked': isMocked,
       },
     );
   }
