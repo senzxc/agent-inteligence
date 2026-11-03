@@ -4,6 +4,7 @@ import 'package:geocoding/geocoding.dart';
 
 import '../services/api_service.dart';
 import '../services/gps_tracking_service.dart';
+import '../utils/agency_role.dart';
 import '../widgets/agent_marker.dart';
 import 'agent_task.dart';
 
@@ -1210,7 +1211,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> {
                     const SizedBox(height: 9),
                     _HeaderInfoRow(
                       icon: Icons.work_outline,
-                      label: 'Jabatan: $_agencyRole',
+                      label: 'Jabatan: ${formatAgencyRole(_agencyRole)}',
                     ),
                   ],
                 ),
@@ -1294,71 +1295,21 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> {
                   ),
               if (!_isLoading && _error == null) ...[
                 const SizedBox(height: 10),
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: _openAgentMap,
-                    borderRadius: BorderRadius.circular(18),
-                    child: Ink(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF0D47A1), _primary],
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                        ),
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x261565C0),
-                            blurRadius: 14,
-                            offset: Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(
-                            Icons.location_searching_rounded,
-                            color: Colors.white,
-                            size: 22,
-                          ),
-                          SizedBox(width: 13),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Lihat seluruh agen',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                SizedBox(height: 3),
-                                Text(
-                                  'Buka peta dan status lokasi agen',
-                                  style: TextStyle(
-                                    color: Color(0xFFDCEBFF),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Icon(
-                            Icons.arrow_forward_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ],
-                      ),
+                OutlinedButton.icon(
+                  onPressed: _openAgentMap,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _primary,
+                    backgroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 50),
+                    side: const BorderSide(color: Color(0xFFBBD5F5)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
+                  ),
+                  icon: const Icon(Icons.groups_rounded),
+                  label: const Text(
+                    'Lihat Seluruh Agen',
+                    style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
@@ -1456,6 +1407,10 @@ class _AgentCard extends StatelessWidget {
         elevation: 1,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 10,
+          ),
           leading: AgentMarker(name: name, identity: id, isOnline: true),
           title: Text(
             name,
@@ -1614,7 +1569,8 @@ class _HeaderInfoRow extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.9),
-              fontSize: 13,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
