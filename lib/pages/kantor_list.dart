@@ -23,6 +23,22 @@ const BoxShadow _cardShadow = BoxShadow(
   offset: Offset(0, 7),
 );
 
+class _OfficeMarkerTransition {
+  const _OfficeMarkerTransition({
+    required this.office,
+    required this.from,
+    required this.to,
+    required this.fromScale,
+    required this.toScale,
+  });
+
+  final Map<String, dynamic> office;
+  final LatLng from;
+  final LatLng to;
+  final double fromScale;
+  final double toScale;
+}
+
 class KantorListPage extends StatefulWidget {
   const KantorListPage({super.key, this.showMiniMap = false});
 
@@ -39,6 +55,8 @@ class _KantorListPageState extends State<KantorListPage>
       DraggableScrollableController();
   late final AnimationController _officeSheetAnimationController;
   late final AnimationController _mapCenterAnimationController;
+  late final AnimationController _officeMarkerAnimationController;
+  final Map<String, _OfficeMarkerTransition> _officeMarkerTransitions = {};
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   List<Map<String, dynamic>> _kantorList = [];
@@ -77,6 +95,13 @@ class _KantorListPageState extends State<KantorListPage>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     )..addListener(_updateMapCenterAnimation);
+    _officeMarkerAnimationController =
+        AnimationController(
+            vsync: this,
+            duration: const Duration(milliseconds: 850),
+          )
+          ..addListener(_onOfficeMarkerAnimationTick)
+          ..addStatusListener(_onOfficeMarkerAnimationStatusChanged);
     _loadKantor();
     _searchFocusNode.addListener(() {
       if (mounted) setState(() => _searchFocused = _searchFocusNode.hasFocus);
@@ -89,11 +114,93 @@ class _KantorListPageState extends State<KantorListPage>
   @override
   void dispose() {
     _mapCenterAnimationController.dispose();
+    _officeMarkerAnimationController.dispose();
     _officeSheetAnimationController.dispose();
     _officeSheetController.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  void _onOfficeMarkerAnimationTick() {
+    if (mounted) setState(() {});
+  }
+
+  void _onOfficeMarkerAnimationStatusChanged(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+    final removed = _officeMarkerTransitions.entries
+        .where((entry) => entry.value.toScale < 1)
+        .map((entry) => entry.key)
+        .toList();
+    if (removed.isEmpty) return;
+    for (final key in removed) {
+      _officeMarkerTransitions.remove(key);
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _reconcileOfficeMarkers(List<Map<String, dynamic>> offices) {
+    if (!widget.showMiniMap) return;
+    final rawProgress = _officeMarkerAnimationController.value;
+    final progress = Curves.easeInOutCubic.transform(rawProgress);
+    final targets = <String, MapEntry<Map<String, dynamic>, LatLng>>{};
+    for (final office in offices) {
+      final location = _coordinatesFor(office);
+      if (location == null) continue;
+      final id = (office['KODE_KANTOR'] ?? office['NAMA_KANTOR'])
+          .toString()
+          .trim();
+      if (id.isEmpty) continue;
+      targets[id] = MapEntry(office, location);
+    }
+
+    final keys = {..._officeMarkerTransitions.keys, ...targets.keys};
+    final next = <String, _OfficeMarkerTransition>{};
+    var changed = false;
+    for (final key in keys) {
+      final existing = _officeMarkerTransitions[key];
+      final target = targets[key];
+      final currentPoint = existing == null
+          ? target!.value
+          : LatLng(
+              existing.from.latitude +
+                  (existing.to.latitude - existing.from.latitude) * progress,
+              existing.from.longitude +
+                  (existing.to.longitude - existing.from.longitude) * progress,
+            );
+      final currentScale = existing == null
+          ? 0.72
+          : _officeMarkerScale(existing, rawProgress);
+      final destination = target?.value ?? currentPoint;
+      final destinationScale = target == null ? 0.72 : 1.0;
+      next[key] = _OfficeMarkerTransition(
+        office: target?.key ?? existing!.office,
+        from: currentPoint,
+        to: destination,
+        fromScale: currentScale,
+        toScale: destinationScale,
+      );
+      if (currentPoint != destination || currentScale != destinationScale) {
+        changed = true;
+      }
+    }
+
+    _officeMarkerTransitions
+      ..clear()
+      ..addAll(next);
+    if (changed) _officeMarkerAnimationController.forward(from: 0);
+  }
+
+  double _officeMarkerScale(
+    _OfficeMarkerTransition transition,
+    double progress,
+  ) {
+    final curve = transition.toScale > transition.fromScale
+        ? Curves.easeOutBack
+        : Curves.easeInBack;
+    final curvedProgress = curve.transform(progress);
+    return transition.fromScale +
+        (transition.toScale - transition.fromScale) * curvedProgress;
   }
 
   Future<void> _loadKantor() async {
@@ -118,6 +225,7 @@ class _KantorListPageState extends State<KantorListPage>
           _kantorList = rows;
           _isLoading = false;
         });
+        _reconcileOfficeMarkers(rows);
         if (_mapReady) _fitMapToOffices();
         if (widget.showMiniMap) {
           unawaited(_geocodeMissingOfficeLocations());
@@ -264,6 +372,7 @@ class _KantorListPageState extends State<KantorListPage>
             setState(() {
               _kantorList = offices;
             });
+            _reconcileOfficeMarkers(offices);
           } else {
             _geocodingErrorCount++;
           }
@@ -306,31 +415,40 @@ class _KantorListPageState extends State<KantorListPage>
   }
 
   List<flutter_map.Marker> _buildOfficeMarkers() {
-    return _kantorList
-        .map((kantor) {
-          final coordinates = _coordinatesFor(kantor);
-          if (coordinates == null) return null;
-
-          return flutter_map.Marker(
-            point: coordinates,
-            width: 48,
-            height: 54,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _selectOffice(kantor),
-              child: const Center(
-                child: Icon(
-                  Icons.location_on_rounded,
-                  color: _brandBlue,
-                  size: 42,
-                  shadows: [Shadow(color: Color(0x550F172A), blurRadius: 8)],
-                ),
+    final rawProgress = _officeMarkerAnimationController.value;
+    final progress = Curves.easeInOutCubic.transform(rawProgress);
+    return _officeMarkerTransitions.entries.map((entry) {
+      final transition = entry.value;
+      final coordinates = LatLng(
+        transition.from.latitude +
+            (transition.to.latitude - transition.from.latitude) * progress,
+        transition.from.longitude +
+            (transition.to.longitude - transition.from.longitude) * progress,
+      );
+      final scale = _officeMarkerScale(transition, rawProgress);
+      return flutter_map.Marker(
+        point: coordinates,
+        width: 48,
+        height: 54,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: transition.toScale < 1
+              ? null
+              : () => _selectOffice(transition.office),
+          child: Transform.scale(
+            scale: scale,
+            child: const Center(
+              child: Icon(
+                Icons.location_on_rounded,
+                color: _brandBlue,
+                size: 42,
+                shadows: [Shadow(color: Color(0x550F172A), blurRadius: 8)],
               ),
             ),
-          );
-        })
-        .whereType<flutter_map.Marker>()
-        .toList();
+          ),
+        ),
+      );
+    }).toList();
   }
 
   Widget _buildOfficeLabel() {
@@ -675,6 +793,24 @@ class _KantorListPageState extends State<KantorListPage>
                   ),
                 ),
               ),
+              if (widget.showMiniMap)
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: Material(
+                    color: Colors.white,
+                    elevation: 4,
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      tooltip: 'Tampilkan seluruh kantor',
+                      onPressed: _fitMapToOffices,
+                      icon: const Icon(
+                        Icons.zoom_out_map_rounded,
+                        color: Color(0xFF0D47A1),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

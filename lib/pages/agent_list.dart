@@ -139,6 +139,22 @@ class _AgentMenuItem extends StatelessWidget {
   }
 }
 
+class _AgentMarkerTransition {
+  const _AgentMarkerTransition({
+    required this.agent,
+    required this.from,
+    required this.to,
+    required this.fromScale,
+    required this.toScale,
+  });
+
+  final Map<String, dynamic> agent;
+  final LatLng from;
+  final LatLng to;
+  final double fromScale;
+  final double toScale;
+}
+
 class AgentListPage extends StatefulWidget {
   const AgentListPage({super.key});
 
@@ -155,9 +171,12 @@ class _AgentListPageState extends State<AgentListPage>
   final TextEditingController _agentSearchController = TextEditingController();
   late final AnimationController _centerAnimationController;
   late final AnimationController _mapAgentSheetAnimationController;
+  late final AnimationController _agentMarkerAnimationController;
+  final Map<String, _AgentMarkerTransition> _agentMarkerTransitions = {};
   LatLng? _animationStartCenter;
   LatLng? _animationTargetCenter;
   double _animationStartZoom = 15;
+  double _animationTargetZoom = 16;
 
   List<Map<String, dynamic>> _agents = [];
   bool _loading = true;
@@ -170,6 +189,7 @@ class _AgentListPageState extends State<AgentListPage>
   String? _alamatKantor;
   bool _isHeadMarketing = false;
   bool _viewAllBranches = false;
+  bool _showIndonesiaMapButton = false;
   bool _mapReady = false;
   bool _canAddTasks = true;
   double? _latitude;
@@ -275,6 +295,7 @@ class _AgentListPageState extends State<AgentListPage>
           appRole == 'HEAD_MARKETING' || agencyRole == 'KD' || levelUser == '1';
       _viewAllBranches =
           arguments['VIEW_ALL_BRANCHES'] == true && _isHeadMarketing;
+      _showIndonesiaMapButton = arguments['SHOW_INDONESIA_MAP_BUTTON'] == true;
       _canAddTasks =
           !_isHeadMarketing &&
           appRole != 'HEAD_AGENT' &&
@@ -330,6 +351,91 @@ class _AgentListPageState extends State<AgentListPage>
       duration: const Duration(milliseconds: 320),
       reverseDuration: const Duration(milliseconds: 240),
     );
+    _agentMarkerAnimationController =
+        AnimationController(
+            vsync: this,
+            duration: const Duration(milliseconds: 850),
+          )
+          ..addListener(_onAgentMarkerAnimationTick)
+          ..addStatusListener(_onAgentMarkerAnimationStatusChanged);
+  }
+
+  void _onAgentMarkerAnimationTick() {
+    if (mounted) setState(() {});
+  }
+
+  void _onAgentMarkerAnimationStatusChanged(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+    final removed = _agentMarkerTransitions.entries
+        .where((entry) => entry.value.toScale < 1)
+        .map((entry) => entry.key)
+        .toList();
+    if (removed.isEmpty) return;
+    for (final key in removed) {
+      _agentMarkerTransitions.remove(key);
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _reconcileAgentMarkers(List<Map<String, dynamic>> agents) {
+    final rawProgress = _agentMarkerAnimationController.value;
+    final progress = Curves.easeInOutCubic.transform(rawProgress);
+    final targets = <String, MapEntry<Map<String, dynamic>, LatLng>>{};
+    for (final agent in agents) {
+      final location = _agentCoordinates(agent);
+      if (location == null) continue;
+      final id = (agent['NOMOR_AGEN'] ?? agent['I_AGEN'] ?? agent['NAMA_AGEN'])
+          .toString()
+          .trim();
+      if (id.isEmpty) continue;
+      targets[id] = MapEntry(agent, location);
+    }
+
+    final keys = {..._agentMarkerTransitions.keys, ...targets.keys};
+    final next = <String, _AgentMarkerTransition>{};
+    var changed = false;
+    for (final key in keys) {
+      final existing = _agentMarkerTransitions[key];
+      final target = targets[key];
+      final currentPoint = existing == null
+          ? target!.value
+          : LatLng(
+              existing.from.latitude +
+                  (existing.to.latitude - existing.from.latitude) * progress,
+              existing.from.longitude +
+                  (existing.to.longitude - existing.from.longitude) * progress,
+            );
+      final currentScale = existing == null
+          ? 0.72
+          : _agentMarkerScale(existing, rawProgress);
+      final destination = target?.value ?? currentPoint;
+      final destinationScale = target == null ? 0.72 : 1.0;
+      final updated = _AgentMarkerTransition(
+        agent: target?.key ?? existing!.agent,
+        from: currentPoint,
+        to: destination,
+        fromScale: currentScale,
+        toScale: destinationScale,
+      );
+      next[key] = updated;
+      if (currentPoint != destination || currentScale != destinationScale) {
+        changed = true;
+      }
+    }
+
+    _agentMarkerTransitions
+      ..clear()
+      ..addAll(next);
+    if (changed) _agentMarkerAnimationController.forward(from: 0);
+  }
+
+  double _agentMarkerScale(_AgentMarkerTransition transition, double progress) {
+    final curve = transition.toScale > transition.fromScale
+        ? Curves.easeOutBack
+        : Curves.easeInBack;
+    final curvedProgress = curve.transform(progress);
+    return transition.fromScale +
+        (transition.toScale - transition.fromScale) * curvedProgress;
   }
 
   void _selectMapAgent(String agentId) {
@@ -381,7 +487,9 @@ class _AgentListPageState extends State<AgentListPage>
       start.latitude + (target.latitude - start.latitude) * progress,
       start.longitude + (target.longitude - start.longitude) * progress,
     );
-    final zoom = _animationStartZoom + (16 - _animationStartZoom) * progress;
+    final zoom =
+        _animationStartZoom +
+        (_animationTargetZoom - _animationStartZoom) * progress;
     _mapController.move(center, zoom);
   }
 
@@ -414,6 +522,16 @@ class _AgentListPageState extends State<AgentListPage>
     _animationStartCenter = _mapController.camera.center;
     _animationTargetCenter = LatLng(_latitude!, _longitude!);
     _animationStartZoom = _mapController.camera.zoom;
+    _animationTargetZoom = 16;
+    _centerAnimationController.forward(from: 0);
+  }
+
+  void _centerIndonesiaMap() {
+    if (!_mapReady) return;
+    _animationStartCenter = _mapController.camera.center;
+    _animationTargetCenter = _initialMapCenter;
+    _animationStartZoom = _mapController.camera.zoom;
+    _animationTargetZoom = 4.2;
     _centerAnimationController.forward(from: 0);
   }
 
@@ -480,37 +598,46 @@ class _AgentListPageState extends State<AgentListPage>
   }
 
   List<flutter_map.Marker> _agentMarkers() {
-    return _agents
-        .map((agent) {
-          final location = _agentCoordinates(agent);
-          if (location == null) return null;
-
-          final name = (agent['NAMA_AGEN'] ?? 'Agen').toString();
-          final isOnline =
-              agent['isTracking'] == true ||
-              agent['isTracking']?.toString() == '1';
-          final agentId = agent['NOMOR_AGEN'];
-          return flutter_map.Marker(
-            point: location,
-            width: 200,
-            height: 100,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _selectMapAgent((agentId ?? '').toString()),
-              child: _buildMapMarkerWithLabel(
+    final rawProgress = _agentMarkerAnimationController.value;
+    final progress = Curves.easeInOutCubic.transform(rawProgress);
+    return _agentMarkerTransitions.entries.map((entry) {
+      final transition = entry.value;
+      final agent = transition.agent;
+      final location = LatLng(
+        transition.from.latitude +
+            (transition.to.latitude - transition.from.latitude) * progress,
+        transition.from.longitude +
+            (transition.to.longitude - transition.from.longitude) * progress,
+      );
+      final scale = _agentMarkerScale(transition, rawProgress);
+      final name = (agent['NAMA_AGEN'] ?? 'Agen').toString();
+      final isOnline =
+          agent['isTracking'] == true || agent['isTracking']?.toString() == '1';
+      final agentId = agent['NOMOR_AGEN'] ?? agent['I_AGEN'];
+      return flutter_map.Marker(
+        point: location,
+        width: 200,
+        height: 100,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: transition.toScale < 1
+              ? null
+              : () => _selectMapAgent((agentId ?? '').toString()),
+          child: Transform.scale(
+            scale: scale,
+            child: _buildMapMarkerWithLabel(
+              identity: agentId,
+              label: name,
+              marker: AgentMarker(
+                name: name,
                 identity: agentId,
-                label: name,
-                marker: AgentMarker(
-                  name: name,
-                  identity: agentId,
-                  isOnline: isOnline,
-                ),
+                isOnline: isOnline,
               ),
             ),
-          );
-        })
-        .whereType<flutter_map.Marker>()
-        .toList();
+          ),
+        ),
+      );
+    }).toList();
   }
 
   Widget _buildMapMarkerWithLabel({
@@ -2395,6 +2522,7 @@ class _AgentListPageState extends State<AgentListPage>
         _error = null;
         _refreshError = null;
       });
+      _reconcileAgentMarkers(agents);
       if (_focusAgentId != null &&
           _focusAgentId!.isNotEmpty &&
           !_didFocusRequestedAgent) {
@@ -2766,6 +2894,7 @@ class _AgentListPageState extends State<AgentListPage>
     _pageScrollController.dispose();
     _centerAnimationController.dispose();
     _mapAgentSheetAnimationController.dispose();
+    _agentMarkerAnimationController.dispose();
     _mapAgentSheetController.dispose();
     _mapController.dispose();
     super.dispose();
@@ -2923,6 +3052,24 @@ class _AgentListPageState extends State<AgentListPage>
                           ..._agentMarkers(),
                         ],
                       ),
+                      if (_showIndonesiaMapButton)
+                        Positioned(
+                          right: 12,
+                          bottom: 12,
+                          child: Material(
+                            color: Colors.white,
+                            elevation: 4,
+                            shape: const CircleBorder(),
+                            child: IconButton(
+                              tooltip: 'Tampilkan seluruh Indonesia',
+                              onPressed: _centerIndonesiaMap,
+                              icon: const Icon(
+                                Icons.zoom_out_map_rounded,
+                                color: Color(0xFF0D47A1),
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                   if (_hasValidCoordinates)
