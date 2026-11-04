@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../utils/kantor_type.dart';
 import '../widgets/agent_marker.dart';
+import '../widgets/press_bounce.dart';
 import 'agent_task.dart';
 
 const _branchMapGradientColors = [Color(0xFF0D47A1), Color(0xFF1565C0)];
@@ -618,22 +619,19 @@ class _AgentListPageState extends State<AgentListPage>
         point: location,
         width: 200,
         height: 100,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: transition.toScale < 1
-              ? null
-              : () => _selectMapAgent((agentId ?? '').toString()),
-          child: Transform.scale(
-            scale: scale,
-            child: _buildMapMarkerWithLabel(
+        child: Transform.scale(
+          scale: scale,
+          child: _buildMapMarkerWithLabel(
+            identity: agentId,
+            label: name,
+            onTap: transition.toScale < 1
+                ? null
+                : () => _selectMapAgent((agentId ?? '').toString()),
+            marker: AgentMarker(
+              name: name,
               identity: agentId,
-              label: name,
-              marker: AgentMarker(
-                name: name,
-                identity: agentId,
-                isOnline: isOnline,
-                offlineColor: const Color(0xFF64748B),
-              ),
+              isOnline: isOnline,
+              offlineColor: const Color(0xFF64748B),
             ),
           ),
         ),
@@ -645,6 +643,7 @@ class _AgentListPageState extends State<AgentListPage>
     required Object? identity,
     required String label,
     required Widget marker,
+    VoidCallback? onTap,
     _MapLabelPosition? preferredPosition,
   }) {
     final key = (identity ?? label).toString().trim().toUpperCase();
@@ -688,6 +687,9 @@ class _AgentListPageState extends State<AgentListPage>
       ),
     );
 
+    Widget clickable(Widget child) =>
+        onTap == null ? child : PressBounce(onTap: onTap, child: child);
+
     return SizedBox(
       width: 200,
       height: 100,
@@ -695,15 +697,15 @@ class _AgentListPageState extends State<AgentListPage>
         alignment: Alignment.center,
         clipBehavior: Clip.none,
         children: [
-          marker,
+          clickable(marker),
           if (position == _MapLabelPosition.left)
-            Positioned(left: -8, child: labelWidget)
+            Positioned(left: -8, child: clickable(labelWidget))
           else if (position == _MapLabelPosition.right)
-            Positioned(right: -8, child: labelWidget)
+            Positioned(right: -8, child: clickable(labelWidget))
           else if (position == _MapLabelPosition.above)
-            Positioned(top: -4, child: labelWidget)
+            Positioned(top: -4, child: clickable(labelWidget))
           else
-            Positioned(bottom: -4, child: labelWidget),
+            Positioned(bottom: -4, child: clickable(labelWidget)),
         ],
       ),
     );
@@ -970,7 +972,7 @@ class _AgentListPageState extends State<AgentListPage>
                 ),
               _buildMapAgentInfoRow(
                 icon: Icons.update_rounded,
-                label: 'Terakhir diperbarui',
+                label: 'Terakhir Online',
                 value: _agentLastUpdateText(agent),
               ),
             ],
@@ -2165,7 +2167,7 @@ class _AgentListPageState extends State<AgentListPage>
 
                           _agentDetailTile(
                             icon: Icons.access_time_rounded,
-                            label: 'Update Terakhir',
+                            label: 'Terakhir Online',
                             value: timestamp,
                           ),
 
@@ -3023,37 +3025,34 @@ class _AgentListPageState extends State<AgentListPage>
                               point: LatLng(_latitude!, _longitude!),
                               width: 200,
                               height: 100,
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
+                              child: _buildMapMarkerWithLabel(
+                                identity: _kantor ?? _namaKantor,
+                                label: _namaKantor ?? 'Kantor',
                                 onTap: _selectOfficeOnMap,
-                                child: _buildMapMarkerWithLabel(
-                                  identity: _kantor ?? _namaKantor,
-                                  label: _namaKantor ?? 'Kantor',
-                                  preferredPosition: _MapLabelPosition.above,
-                                  marker: Container(
-                                    width: 50,
-                                    height: 50,
-                                    decoration: BoxDecoration(
-                                      gradient: const LinearGradient(
-                                        colors: _branchMapGradientColors,
-                                        begin: Alignment.centerLeft,
-                                        end: Alignment.centerRight,
+                                preferredPosition: _MapLabelPosition.above,
+                                marker: Container(
+                                  width: 50,
+                                  height: 50,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: _branchMapGradientColors,
+                                      begin: Alignment.centerLeft,
+                                      end: Alignment.centerRight,
+                                    ),
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF1565C0)
+                                            .withValues(alpha: 0.35),
+                                        blurRadius: 15,
+                                        spreadRadius: 3,
                                       ),
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: const Color(0xFF1565C0)
-                                              .withValues(alpha: 0.35),
-                                          blurRadius: 15,
-                                          spreadRadius: 3,
-                                        ),
-                                      ],
-                                    ),
-                                    child: const Icon(
-                                      shadcn.LucideIcons.mapPin,
-                                      color: Colors.white,
-                                      size: 28,
-                                    ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    shadcn.LucideIcons.mapPin,
+                                    color: Colors.white,
+                                    size: 28,
                                   ),
                                 ),
                               ),
