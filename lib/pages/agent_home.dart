@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../services/gps_tracking_service.dart';
+import '../utils/dashboard_route_observer.dart';
 import '../pages/agent_task.dart';
 
 class AgentHomePage extends StatefulWidget {
@@ -13,7 +14,8 @@ class AgentHomePage extends StatefulWidget {
   State<AgentHomePage> createState() => _AgentHomePageState();
 }
 
-class _AgentHomePageState extends State<AgentHomePage> {
+class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
+  PageRoute<dynamic>? _dashboardRoute;
   static const Color _primary = Color(0xFF1565C0);
   static const Color _pageStart = Color(0xFFF8FBFF);
   static const Color _pageEnd = Color(0xFFEAF3FF);
@@ -53,6 +55,30 @@ class _AgentHomePageState extends State<AgentHomePage> {
   void initState() {
     super.initState();
     _loadTasks();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute<dynamic> && route != _dashboardRoute) {
+      if (_dashboardRoute != null) {
+        dashboardRouteObserver.unsubscribe(this);
+      }
+      _dashboardRoute = route;
+      dashboardRouteObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void didPopNext() {
+    _loadTasks();
+  }
+
+  @override
+  void dispose() {
+    dashboardRouteObserver.unsubscribe(this);
+    super.dispose();
   }
 
   Future<void> _loadTasks() async {
