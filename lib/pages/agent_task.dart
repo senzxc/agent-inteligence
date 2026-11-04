@@ -2360,7 +2360,11 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                             child: Text(value),
                           );
                         }).toList(),
-                        onChanged: isUpdating || _isLoading || isCompleted
+                        onChanged:
+                            !widget.canManageTasks ||
+                                isUpdating ||
+                                _isLoading ||
+                                isCompleted
                             ? null
                             : (value) {
                                 if (value != null && value != status) {
