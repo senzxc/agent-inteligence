@@ -9,6 +9,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../services/api_service.dart';
 import '../utils/kantor_type.dart';
+import '../widgets/press_bounce.dart';
 
 enum _KantorSortField { name, type }
 
@@ -430,13 +431,12 @@ class _KantorListPageState extends State<KantorListPage>
         point: coordinates,
         width: 48,
         height: 54,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: transition.toScale < 1
-              ? null
-              : () => _selectOffice(transition.office),
-          child: Transform.scale(
-            scale: scale,
+        child: Transform.scale(
+          scale: scale,
+          child: PressBounce(
+            onTap: transition.toScale < 1
+                ? null
+                : () => _selectOffice(transition.office),
             child: const Center(
               child: Icon(
                 Icons.location_on_rounded,
@@ -523,7 +523,8 @@ class _KantorListPageState extends State<KantorListPage>
           top: selectedRect.top,
           width: labelWidth,
           height: labelHeight,
-          child: IgnorePointer(
+          child: PressBounce(
+            onTap: () => _selectOffice(office),
             child: Material(
               color: Colors.white,
               elevation: 3,
@@ -720,26 +721,24 @@ class _KantorListPageState extends State<KantorListPage>
                 ],
               ),
               Positioned.fill(
-                child: IgnorePointer(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 260),
-                    reverseDuration: const Duration(milliseconds: 180),
-                    switchInCurve: Curves.easeOutBack,
-                    switchOutCurve: Curves.easeInCubic,
-                    transitionBuilder: (child, animation) => FadeTransition(
-                      opacity: animation,
-                      child: ScaleTransition(
-                        scale: Tween<double>(begin: 0.82, end: 1).animate(
-                          CurvedAnimation(
-                            parent: animation,
-                            curve: Curves.easeOutBack,
-                          ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 260),
+                  reverseDuration: const Duration(milliseconds: 180),
+                  switchInCurve: Curves.easeOutBack,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(
+                      scale: Tween<double>(begin: 0.82, end: 1).animate(
+                        CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeOutBack,
                         ),
-                        child: child,
                       ),
+                      child: child,
                     ),
-                    child: _buildOfficeLabel(),
                   ),
+                  child: _buildOfficeLabel(),
                 ),
               ),
               Positioned(
