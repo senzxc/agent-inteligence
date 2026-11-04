@@ -193,6 +193,7 @@ class _AgentListPageState extends State<AgentListPage>
   bool _showIndonesiaMapButton = false;
   bool _mapReady = false;
   bool _canAddTasks = true;
+  bool _canManageAgentTasks = true;
   double? _latitude;
   double? _longitude;
   String? _officeGeocodeError;
@@ -301,6 +302,8 @@ class _AgentListPageState extends State<AgentListPage>
           !_isHeadMarketing &&
           appRole != 'HEAD_AGENT' &&
           !['AD', 'AM', 'AS'].contains(agencyRole);
+      _canManageAgentTasks =
+          !_isHeadMarketing && !['AD', 'AM', 'AS'].contains(agencyRole);
       _kantor = _viewAllBranches
           ? null
           : arguments['KODE_KANTOR']?.toString().trim();
@@ -601,42 +604,57 @@ class _AgentListPageState extends State<AgentListPage>
   List<flutter_map.Marker> _agentMarkers() {
     final rawProgress = _agentMarkerAnimationController.value;
     final progress = Curves.easeInOutCubic.transform(rawProgress);
-    return _agentMarkerTransitions.entries.map((entry) {
-      final transition = entry.value;
-      final agent = transition.agent;
-      final location = LatLng(
-        transition.from.latitude +
-            (transition.to.latitude - transition.from.latitude) * progress,
-        transition.from.longitude +
-            (transition.to.longitude - transition.from.longitude) * progress,
-      );
-      final scale = _agentMarkerScale(transition, rawProgress);
-      final name = (agent['NAMA_AGEN'] ?? 'Agen').toString();
-      final isOnline =
-          agent['isTracking'] == true || agent['isTracking']?.toString() == '1';
-      final agentId = agent['NOMOR_AGEN'] ?? agent['I_AGEN'];
-      return flutter_map.Marker(
-        point: location,
-        width: 200,
-        height: 100,
-        child: Transform.scale(
-          scale: scale,
-          child: _buildMapMarkerWithLabel(
-            identity: agentId,
-            label: name,
-            onTap: transition.toScale < 1
-                ? null
-                : () => _selectMapAgent((agentId ?? '').toString()),
-            marker: AgentMarker(
-              name: name,
-              identity: agentId,
-              isOnline: isOnline,
-              offlineColor: const Color(0xFF64748B),
+    return _agentMarkerTransitions.entries
+        .where((entry) {
+          final agent = entry.value.agent;
+          final isOnline =
+              agent['isTracking'] == true ||
+              agent['isTracking']?.toString() == '1';
+          return switch (_selectedAgentStatus) {
+            _AgentStatusFilter.online => isOnline,
+            _AgentStatusFilter.offline => !isOnline,
+            _AgentStatusFilter.all => true,
+          };
+        })
+        .map((entry) {
+          final transition = entry.value;
+          final agent = transition.agent;
+          final location = LatLng(
+            transition.from.latitude +
+                (transition.to.latitude - transition.from.latitude) * progress,
+            transition.from.longitude +
+                (transition.to.longitude - transition.from.longitude) *
+                    progress,
+          );
+          final scale = _agentMarkerScale(transition, rawProgress);
+          final name = (agent['NAMA_AGEN'] ?? 'Agen').toString();
+          final isOnline =
+              agent['isTracking'] == true ||
+              agent['isTracking']?.toString() == '1';
+          final agentId = agent['NOMOR_AGEN'] ?? agent['I_AGEN'];
+          return flutter_map.Marker(
+            point: location,
+            width: 200,
+            height: 100,
+            child: Transform.scale(
+              scale: scale,
+              child: _buildMapMarkerWithLabel(
+                identity: agentId,
+                label: name,
+                onTap: transition.toScale < 1
+                    ? null
+                    : () => _selectMapAgent((agentId ?? '').toString()),
+                marker: AgentMarker(
+                  name: name,
+                  identity: agentId,
+                  isOnline: isOnline,
+                  offlineColor: const Color(0xFF64748B),
+                ),
+              ),
             ),
-          ),
-        ),
-      );
-    }).toList();
+          );
+        })
+        .toList();
   }
 
   Widget _buildMapMarkerWithLabel({
@@ -927,6 +945,26 @@ class _AgentListPageState extends State<AgentListPage>
                       onPressed: () => _showAgentLocationDetails(agent),
                       icon: const Icon(Icons.location_on_outlined, size: 17),
                       label: const Text('Detail Lokasi'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 42),
+                        backgroundColor: const Color(0xFF1565C0)
+                            .withValues(alpha: 0.14),
+                        foregroundColor: const Color(0xFF0D47A1),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      onPressed: () => _openAgentTasks(agent),
+                      icon: const Icon(Icons.checklist_rounded, size: 17),
+                      label: const Text('Tugas Agen'),
                       style: FilledButton.styleFrom(
                         minimumSize: const Size(0, 42),
                         backgroundColor: const Color(0xFF1565C0)
@@ -1469,16 +1507,20 @@ class _AgentListPageState extends State<AgentListPage>
       case _AgentMenuAction.chat:
         await _openWhatsAppChat(phone);
       case _AgentMenuAction.tasks:
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => AgentTaskPage(
-              agent: agent,
-              canManageTasks: !_isHeadMarketing,
-              canAddTasks: _canAddTasks,
-            ),
-          ),
-        );
+        await _openAgentTasks(agent);
     }
+  }
+
+  Future<void> _openAgentTasks(Map<String, dynamic> agent) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AgentTaskPage(
+          agent: agent,
+          canManageTasks: _canManageAgentTasks,
+          canAddTasks: _canAddTasks,
+        ),
+      ),
+    );
   }
 
   Future<void> _showAgentLocationSubmenu({
@@ -3131,6 +3173,16 @@ class _AgentListPageState extends State<AgentListPage>
             value: onlineCount,
             color: const Color(0xFF15803D),
             backgroundColor: const Color(0xFFDCFCE7),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _buildAgentSummaryItem(
+            icon: Icons.wifi_tethering_off_rounded,
+            label: 'Agen Offline',
+            value: _agents.length - onlineCount,
+            color: const Color.fromARGB(255, 102, 102, 102),
+            backgroundColor: const Color.fromARGB(59, 175, 175, 175),
           ),
         ),
       ],
