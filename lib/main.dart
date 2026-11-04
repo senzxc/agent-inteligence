@@ -17,6 +17,7 @@ import 'pages/kantor_list.dart';
 import 'services/api_service.dart';
 import 'services/gps_tracking_service.dart';
 import 'utils/agency_role.dart';
+import 'utils/dashboard_route_observer.dart';
 import 'utils/kantor_type.dart';
 
 // import 'package:lottie/lottie.dart';
@@ -202,6 +203,7 @@ class BusinessIntelligenceApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [Locale('id', 'ID'), Locale('en', 'US')],
+      navigatorObservers: [dashboardRouteObserver],
 
       // ========================================
       // SHADCN THEME
@@ -852,7 +854,8 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with RouteAware {
+  PageRoute<dynamic>? _dashboardRoute;
   List<Map<String, dynamic>> _kantorList = [];
   bool _isLoadingKantor = true;
   bool _hasLoadedKantor = false;
@@ -872,6 +875,15 @@ class _HomePageState extends State<HomePage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute<dynamic> && route != _dashboardRoute) {
+      if (_dashboardRoute != null) {
+        dashboardRouteObserver.unsubscribe(this);
+      }
+      _dashboardRoute = route;
+      dashboardRouteObserver.subscribe(this, route);
+    }
+
     if (_hasLoadedKantor) return;
     _hasLoadedKantor = true;
 
@@ -913,6 +925,19 @@ class _HomePageState extends State<HomePage> {
     } else {
       _isLoadingDashboardStats = false;
     }
+  }
+
+  @override
+  void didPopNext() {
+    if (_canLoadDashboardStats) {
+      _refreshDashboard();
+    }
+  }
+
+  @override
+  void dispose() {
+    dashboardRouteObserver.unsubscribe(this);
+    super.dispose();
   }
 
   Future<void> _refreshDashboard() async {
