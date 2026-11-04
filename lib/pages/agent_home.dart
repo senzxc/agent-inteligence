@@ -51,6 +51,9 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
 
   String get _officeCode => _firstValue(['KODE_KANTOR', 'KANTOR', 'kantor']);
 
+  String get _officeName =>
+      _firstValue(['NAMA_KANTOR', 'namaKantor'], fallback: _officeCode);
+
   @override
   void initState() {
     super.initState();
@@ -478,7 +481,7 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
           const SizedBox(height: 18),
           _welcomeInfo(Icons.badge_outlined, 'Stambuk: $_agentId'),
           const SizedBox(height: 9),
-          _welcomeInfo(Icons.business_outlined, 'Kode Kantor: $_officeCode'),
+          _welcomeInfo(Icons.business_outlined, 'Kantor: $_officeName'),
           const SizedBox(height: 18),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
