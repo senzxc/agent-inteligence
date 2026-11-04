@@ -5,6 +5,7 @@ import 'package:geocoding/geocoding.dart';
 import '../services/api_service.dart';
 import '../services/gps_tracking_service.dart';
 import '../utils/agency_role.dart';
+import '../utils/dashboard_route_observer.dart';
 import '../widgets/agent_marker.dart';
 import 'agent_task.dart';
 
@@ -25,7 +26,8 @@ class AgentTeamHomePage extends StatefulWidget {
   State<AgentTeamHomePage> createState() => _AgentTeamHomePageState();
 }
 
-class _AgentTeamHomePageState extends State<AgentTeamHomePage> {
+class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
+  PageRoute<dynamic>? _dashboardRoute;
   static const Color _pageStart = Color(0xFFF8FBFF);
   static const Color _pageEnd = Color(0xFFEAF3FF);
   static const Color _primary = Color(0xFF1565C0);
@@ -77,6 +79,30 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> {
   void initState() {
     super.initState();
     _loadAgents();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute<dynamic> && route != _dashboardRoute) {
+      if (_dashboardRoute != null) {
+        dashboardRouteObserver.unsubscribe(this);
+      }
+      _dashboardRoute = route;
+      dashboardRouteObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void didPopNext() {
+    _loadAgents();
+  }
+
+  @override
+  void dispose() {
+    dashboardRouteObserver.unsubscribe(this);
+    super.dispose();
   }
 
   Future<void> _loadAgents() async {
@@ -200,6 +226,26 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> {
     );
   }
 
+  void _openAgentList(String statusFilter) {
+    final appRole = switch (_agencyRole) {
+      'KD' => 'HEAD_MARKETING',
+      'AD' => 'HEAD_AGENT',
+      _ => 'AGENT',
+    };
+    Navigator.pushNamed(
+      context,
+      '/agent-list',
+      arguments: {
+        ...widget.user,
+        'APP_ROLE': appRole,
+        'KODE_KANTOR': _officeCode,
+        'INITIAL_STATUS_FILTER': statusFilter,
+        'VIEW_ALL_BRANCHES': false,
+        'SHOW_INDONESIA_MAP_BUTTON': false,
+      },
+    );
+  }
+
   Future<void> _showAgentQuickMenu(
     Map<String, dynamic> agent,
     Offset tapPosition,
@@ -268,7 +314,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> {
           MaterialPageRoute<void>(
             builder: (_) => AgentTaskPage(
               agent: agent,
-              canManageTasks: true,
+              canManageTasks: !['KD', 'AD', 'AM', 'AS'].contains(_agencyRole),
               canAddTasks: false,
             ),
           ),
@@ -1239,6 +1285,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> {
                       value: _onlineAgentCount?.toString() ?? '—',
                       icon: Icons.wifi_rounded,
                       color: const Color(0xFF16A34A),
+                      onTap: () => _openAgentList('online'),
                     ),
                   ),
                   const SizedBox(width: 9),
@@ -1248,6 +1295,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> {
                       value: _offlineAgentCount?.toString() ?? '—',
                       icon: Icons.wifi_off_rounded,
                       color: const Color(0xFF64748B),
+                      onTap: () => _openAgentList('offline'),
                     ),
                   ),
                   const SizedBox(width: 9),
@@ -1257,6 +1305,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> {
                       value: _totalAgentCount?.toString() ?? '—',
                       icon: Icons.groups_rounded,
                       color: _primary,
+                      onTap: () => _openAgentList('all'),
                     ),
                   ),
                 ],
@@ -1341,54 +1390,63 @@ class _AgentMetricCard extends StatelessWidget {
     required this.value,
     required this.icon,
     required this.color,
+    required this.onTap,
   });
 
   final String label;
   final String value;
   final IconData icon;
   final Color color;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 11),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.12)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0D172033),
-            blurRadius: 12,
-            offset: Offset(0, 4),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 11),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.12)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0D172033),
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontSize: 22,
-              height: 1,
-              fontWeight: FontWeight.w800,
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 22,
+                  height: 1,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 1,
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            maxLines: 1,
-            style: const TextStyle(
-              color: Color(0xFF64748B),
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
