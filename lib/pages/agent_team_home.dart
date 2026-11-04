@@ -52,6 +52,11 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
           .toString()
           .trim();
 
+  String get _officeName =>
+      (widget.user['NAMA_KANTOR'] ?? widget.user['namaKantor'] ?? '')
+          .toString()
+          .trim();
+
   String get _displayName =>
       (widget.user['NAMA_AGEN'] ??
               widget.user['NAMA'] ??
@@ -1266,7 +1271,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
                     _HeaderInfoRow(
                       icon: Icons.business_outlined,
                       label:
-                          'Kantor: ${_officeCode.isEmpty ? '-' : _officeCode}',
+                          'Kantor: ${_officeName.isEmpty ? (_officeCode.isEmpty ? '-' : _officeCode) : _officeName}',
                     ),
                     const SizedBox(height: 9),
                     _HeaderInfoRow(
