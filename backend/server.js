@@ -344,6 +344,7 @@ app.post('/api/login', async (req, res) => {
                     'DD FMMonth YYYY',
                     'NLS_DATE_LANGUAGE=INDONESIAN'
                 ) AS TANGGAL_LAHIR,
+                TO_CHAR(b.D_LAHIR, 'YYYY-MM-DD') AS TANGGAL_LAHIR_ISO,
                 a.TANGGAL_LISENSI,
                 COALESCE(a.NOMOR_HP, b.I_TELEPON_HP) AS NOMOR_HP,
                 b.I_TELEPON_HP,
@@ -485,6 +486,194 @@ app.get('/api/auth/me', authenticate, (req, res) => {
         },
     });
 });
+
+app.patch(
+    '/api/auth/profile',
+    authenticate,
+    requireRoles('HEAD_MARKETING', 'HEAD_AGENT', 'AGENT'),
+    async (req, res) => {
+        const agentId = String(req.authUser.I_AGEN ?? '').trim();
+        const { phone, email, address, birthDate } = req.body ?? {};
+
+        if (!agentId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Profil agen tidak ditemukan pada sesi ini',
+            });
+        }
+
+        if (
+            typeof phone !== 'string' ||
+            typeof email !== 'string' ||
+            typeof address !== 'string'
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: 'Nomor telepon, email, dan alamat wajib diisi',
+            });
+        }
+
+        const normalizedPhone = phone.trim();
+        const normalizedEmail = email.trim();
+        const normalizedAddress = address.trim();
+        const normalizedBirthDate = birthDate == null
+            ? null
+            : String(birthDate).trim();
+        const parsedBirthDate = normalizedBirthDate
+            ? new Date(`${normalizedBirthDate}T00:00:00.000Z`)
+            : null;
+
+        if (
+            !/^[0-9+().\-\s]{8,20}$/.test(normalizedPhone) ||
+            normalizedEmail.length > 254 ||
+            !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail) ||
+            normalizedAddress.length === 0 ||
+            normalizedAddress.length > 500 ||
+            (normalizedBirthDate != null &&
+                (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedBirthDate) ||
+                    Number.isNaN(parsedBirthDate.getTime()) ||
+                    parsedBirthDate.toISOString().slice(0, 10) !==
+                        normalizedBirthDate ||
+                    parsedBirthDate > new Date()))
+        ) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    'Periksa kembali format nomor telepon, email, alamat, dan tanggal lahir',
+            });
+        }
+
+        let connection;
+
+        try {
+            connection = await getConnection();
+
+            const profileResult = await connection.execute(
+                `
+                SELECT
+                    TO_CHAR(D_LAHIR, 'YYYY-MM-DD') AS TANGGAL_LAHIR_ISO
+                FROM TM_AGENCY2
+                WHERE I_AGEN = :agentId
+                FOR UPDATE
+                `,
+                { agentId },
+                { outFormat: oracledb.OUT_FORMAT_OBJECT }
+            );
+
+            if (profileResult.rows.length !== 1) {
+                await connection.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: 'Data profil agen tidak ditemukan',
+                });
+            }
+
+            if (
+                normalizedBirthDate &&
+                profileResult.rows[0].TANGGAL_LAHIR_ISO
+            ) {
+                await connection.rollback();
+                return res.status(409).json({
+                    success: false,
+                    message: 'Tanggal lahir yang sudah diisi tidak dapat diubah',
+                });
+            }
+
+            const agentResult = await connection.execute(
+                `
+                UPDATE DAFTAR_AGEN
+                SET NOMOR_HP = :phone,
+                    ALAMAT = :address
+                WHERE NOMOR_AGEN = :agentId
+                `,
+                {
+                    phone: normalizedPhone,
+                    address: normalizedAddress,
+                    agentId,
+                }
+            );
+            const agencyResult = normalizedBirthDate
+                ? await connection.execute(
+                      `
+                      UPDATE TM_AGENCY2
+                      SET A_EMAIL = :email,
+                          D_LAHIR = TO_DATE(:birthDate, 'YYYY-MM-DD')
+                      WHERE I_AGEN = :agentId
+                        AND D_LAHIR IS NULL
+                      `,
+                      {
+                          email: normalizedEmail,
+                          birthDate: normalizedBirthDate,
+                          agentId,
+                      }
+                  )
+                : await connection.execute(
+                      `
+                      UPDATE TM_AGENCY2
+                      SET A_EMAIL = :email
+                      WHERE I_AGEN = :agentId
+                      `,
+                      { email: normalizedEmail, agentId }
+                  );
+
+            if (
+                agentResult.rowsAffected !== 1 ||
+                agencyResult.rowsAffected !== 1
+            ) {
+                await connection.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: 'Data profil agen tidak ditemukan',
+                });
+            }
+
+            await connection.commit();
+
+            Object.assign(req.authUser, {
+                NOMOR_HP: normalizedPhone,
+                I_TELEPON_HP: normalizedPhone,
+                A_EMAIL: normalizedEmail,
+                EMAIL: normalizedEmail,
+                ALAMAT: normalizedAddress,
+            });
+            if (normalizedBirthDate) {
+                req.authUser.TANGGAL_LAHIR_ISO = normalizedBirthDate;
+                req.authUser.TANGGAL_LAHIR = parsedBirthDate.toLocaleDateString(
+                    'id-ID',
+                    {
+                        timeZone: 'UTC',
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                    }
+                );
+            }
+
+            return res.json({
+                success: true,
+                message: 'Profil berhasil diperbarui',
+                user: {
+                    ...req.authUser,
+                    APP_ROLE: req.authRole,
+                },
+            });
+        } catch (error) {
+            console.error('Update Agent Profile Error:', error);
+            if (connection) {
+                await connection.rollback().catch(console.error);
+            }
+
+            return res.status(500).json({
+                success: false,
+                message: 'Gagal memperbarui profil agen',
+            });
+        } finally {
+            if (connection) {
+                await connection.close().catch(console.error);
+            }
+        }
+    }
+);
 
 // ========================================
 // LOGOUT
