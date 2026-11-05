@@ -21,11 +21,13 @@ class AgentMarker extends StatelessWidget {
     required this.name,
     required this.identity,
     this.isOnline,
+    this.offlineColor,
   });
 
   final String name;
   final Object? identity;
   final bool? isOnline;
+  final Color? offlineColor;
 
   Color get _color {
     final key = (identity ?? '').toString().trim().toUpperCase();
@@ -40,6 +42,7 @@ class AgentMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final markerColor = isOnline == false ? offlineColor ?? _color : _color;
     final initials = name.trim().isEmpty
         ? '??'
         : name.trim().characters.take(2).toString().toUpperCase();
@@ -51,7 +54,7 @@ class AgentMarker extends StatelessWidget {
           height: 40,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: _color,
+            color: markerColor,
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 2.5),
             boxShadow: const [
@@ -75,7 +78,7 @@ class AgentMarker extends StatelessWidget {
           width: 6,
           height: 6,
           decoration: BoxDecoration(
-            color: _color,
+            color: markerColor,
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 1),
           ),
