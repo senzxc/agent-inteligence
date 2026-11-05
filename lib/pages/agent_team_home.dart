@@ -40,6 +40,9 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
   int? _totalAgentCount;
   bool _isLoading = true;
   String? _error;
+  List<Map<String, dynamic>> _myTasks = [];
+  bool _isLoadingMyTasks = true;
+  String? _myTasksError;
 
   String get _agencyRole =>
       (widget.user['C_AGENCY_JABATAN'] ?? '').toString().trim().toUpperCase();
@@ -84,6 +87,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
   void initState() {
     super.initState();
     _loadAgents();
+    _loadMyTasks();
   }
 
   @override
@@ -102,6 +106,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
   @override
   void didPopNext() {
     _loadAgents();
+    _loadMyTasks();
   }
 
   @override
@@ -219,6 +224,693 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
     }
   }
 
+  Future<void> _loadMyTasks() async {
+    final agentId = _agentId.trim();
+    if (agentId.isEmpty || agentId == '-') {
+      setState(() {
+        _myTasksError = 'Nomor agen atau stambuk tidak ditemukan.';
+        _isLoadingMyTasks = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingMyTasks = true;
+      _myTasksError = null;
+    });
+
+    try {
+      final result = await ApiService.getAgentTasks(agentId);
+      final response = result['data'];
+      if (result['statusCode'] != 200 ||
+          response is! Map ||
+          response['success'] != true ||
+          response['data'] is! List) {
+        throw Exception(
+          response is Map
+              ? response['message']?.toString() ?? 'Gagal memuat tugas.'
+              : 'Format respons daftar tugas tidak valid.',
+        );
+      }
+
+      final tasks = (response['data'] as List)
+          .whereType<Map>()
+          .map((task) => Map<String, dynamic>.from(task))
+          .toList();
+      if (!mounted) return;
+
+      setState(() {
+        _myTasks = tasks;
+        _isLoadingMyTasks = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _myTasksError = error.toString().replaceFirst('Exception: ', '');
+        _isLoadingMyTasks = false;
+      });
+    }
+  }
+
+  Future<void> _refreshDashboard() async {
+    await Future.wait<void>([_loadAgents(), _loadMyTasks()]);
+  }
+
+  String _myTaskStatus(Map<String, dynamic> task) {
+    final status = (task['status'] ?? task['STATUS'] ?? 'Belum dimulai')
+        .toString();
+    return const ['Belum dimulai', 'Berjalan', 'Selesai'].contains(status)
+        ? status
+        : 'Belum dimulai';
+  }
+
+  List<Map<String, dynamic>> get _unfinishedMyTasks => _myTasks
+      .where((task) => _myTaskStatus(task) != 'Selesai')
+      .take(5)
+      .toList();
+
+  String _myTaskId(Map<String, dynamic> task) {
+    return (task['id'] ??
+            task['taskId'] ??
+            task['task_id'] ??
+            task['idTugas'] ??
+            '')
+        .toString()
+        .trim();
+  }
+
+  (Color, Color, IconData) _myTaskStatusStyle(String status) {
+    return switch (status) {
+      'Berjalan' => (
+        const Color(0xFFCA8A04),
+        const Color(0xFFFEF9C3),
+        Icons.timelapse_rounded,
+      ),
+      'Selesai' => (
+        const Color(0xFF16A34A),
+        const Color(0xFFF0FDF4),
+        Icons.check_circle_outline_rounded,
+      ),
+      _ => (
+        const Color(0xFF64748B),
+        const Color(0xFFF1F5F9),
+        Icons.radio_button_unchecked_rounded,
+      ),
+    };
+  }
+
+  String _myTaskDeadline(Map<String, dynamic> task) {
+    final raw = (task['tenggat'] ?? task['deadline'] ?? '').toString().trim();
+    if (raw.isEmpty) return 'Tanpa tenggat';
+    final date = DateTime.tryParse(raw);
+    if (date == null) return raw;
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  String _myTaskCreatedAt(Map<String, dynamic> task) {
+    final raw = (task['createdAt'] ?? task['created_at'] ?? task['created'])
+        ?.toString()
+        .trim();
+    final date = raw == null ? null : DateTime.tryParse(raw);
+    if (date == null) return 'Tidak tersedia';
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  Future<void> _showMyTaskDetails(Map<String, dynamic> task) async {
+    final title = (task['judul'] ?? task['title'] ?? 'Tugas tanpa judul')
+        .toString();
+    final description = (task['deskripsi'] ?? task['description'] ?? '')
+        .toString()
+        .trim();
+    var selectedStatus = _myTaskStatus(task);
+    var isUpdatingStatus = false;
+    String? statusError;
+
+    Future<void> updateStatus(
+      String nextStatus,
+      StateSetter setDialogState,
+      BuildContext dialogContext,
+    ) async {
+      if (nextStatus == selectedStatus || isUpdatingStatus) return;
+      if (selectedStatus == 'Selesai') return;
+
+      final taskId = _myTaskId(task);
+      if (taskId.isEmpty) {
+        setDialogState(() {
+          statusError = 'ID tugas tidak ditemukan pada respons server.';
+        });
+        return;
+      }
+
+      setDialogState(() {
+        isUpdatingStatus = true;
+        statusError = null;
+      });
+
+      try {
+        final result = await ApiService.updateTaskStatus(
+          taskId: taskId,
+          status: nextStatus,
+        );
+        final response = result['data'];
+        if (result['statusCode'] != 200 ||
+            response is! Map ||
+            response['success'] != true) {
+          throw Exception(
+            response is Map
+                ? response['message']?.toString() ??
+                      'Gagal memperbarui status tugas.'
+                : 'Format respons perubahan status tidak valid.',
+          );
+        }
+
+        if (!mounted || !dialogContext.mounted) return;
+        setState(() {
+          final index = _myTasks.indexWhere(
+            (item) => _myTaskId(item) == taskId,
+          );
+          if (index >= 0) {
+            _myTasks[index] = {
+              ..._myTasks[index],
+              'status': nextStatus,
+              'updatedAt': DateTime.now().toIso8601String(),
+              if (nextStatus == 'Selesai')
+                'completedAt': DateTime.now().toIso8601String()
+              else
+                'completedAt': null,
+            };
+          }
+        });
+        if (!mounted) return;
+        setDialogState(() {
+          selectedStatus = nextStatus;
+        });
+      } catch (error) {
+        if (!mounted || !dialogContext.mounted) return;
+        setDialogState(() {
+          statusError = error.toString().replaceFirst('Exception: ', '');
+        });
+      } finally {
+        if (mounted && dialogContext.mounted) {
+          setDialogState(() {
+            isUpdatingStatus = false;
+          });
+        }
+      }
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final (statusColor, statusBackground, statusIcon) =
+              _myTaskStatusStyle(selectedStatus);
+          final isCompleted = selectedStatus == 'Selesai';
+
+          return Dialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 24,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: 520,
+                maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.86,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(22, 22, 16, 22),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF0D47A1), Color(0xFF1B72D7)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.16),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.28),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.assignment_outlined,
+                              color: Colors.white,
+                              size: 23,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'DETAIL TUGAS',
+                                  style: TextStyle(
+                                    color: Color(0xFFDCEBFF),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.1,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Tutup',
+                            onPressed: isUpdatingStatus
+                                ? null
+                                : () => Navigator.pop(dialogContext),
+                            icon: const Icon(Icons.close, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 9,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusBackground,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: statusColor.withValues(alpha: 0.2),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    statusIcon,
+                                    size: 15,
+                                    color: statusColor,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    selectedStatus,
+                                    style: TextStyle(
+                                      color: statusColor,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            const Text(
+                              'UBAH STATUS',
+                              style: TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            for (final option in const [
+                              'Belum dimulai',
+                              'Berjalan',
+                              'Selesai',
+                            ])
+                              _buildTaskStatusOption(
+                                option: option,
+                                selectedStatus: selectedStatus,
+                                enabled: !isCompleted && !isUpdatingStatus,
+                                onTap: () => updateStatus(
+                                  option,
+                                  setDialogState,
+                                  dialogContext,
+                                ),
+                              ),
+                            if (isUpdatingStatus) ...[
+                              const SizedBox(height: 10),
+                              const Row(
+                                children: [
+                                  SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: _primary,
+                                    ),
+                                  ),
+                                  SizedBox(width: 9),
+                                  Text(
+                                    'Menyimpan perubahan status...',
+                                    style: TextStyle(
+                                      color: Color(0xFF64748B),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                            if (statusError != null) ...[
+                              const SizedBox(height: 10),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(11),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF2F2),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: const Color(0xFFFECACA),
+                                  ),
+                                ),
+                                child: Text(
+                                  statusError!,
+                                  style: const TextStyle(
+                                    color: Color(0xFFB91C1C),
+                                    fontSize: 12,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            if (isCompleted) ...[
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Tugas yang sudah selesai tidak dapat diubah kembali.',
+                                style: TextStyle(
+                                  color: Color(0xFF64748B),
+                                  fontSize: 12,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 18),
+                            const Text(
+                              'DESKRIPSI',
+                              style: TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFD),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: const Color(0xFFE8EEF6),
+                                ),
+                              ),
+                              child: Text(
+                                description.isEmpty
+                                    ? 'Tidak ada deskripsi.'
+                                    : description,
+                                style: const TextStyle(
+                                  color: Color(0xFF334155),
+                                  fontSize: 14,
+                                  height: 1.55,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            _AgentDetailTile(
+                              icon: Icons.event_outlined,
+                              label: 'Tenggat',
+                              value: _myTaskDeadline(task),
+                            ),
+                            _AgentDetailTile(
+                              icon: Icons.calendar_today_outlined,
+                              label: 'Tanggal dibuat',
+                              value: _myTaskCreatedAt(task),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        border: Border(
+                          top: BorderSide(color: Color(0xFFE8EEF6)),
+                        ),
+                      ),
+                      child: SizedBox(
+                        height: 46,
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(dialogContext),
+                          child: const Text('Tutup'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildTaskStatusOption({
+    required String option,
+    required String selectedStatus,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    final isSelected = option == selectedStatus;
+    final (color, background, icon) = _myTaskStatusStyle(option);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(13),
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+            decoration: BoxDecoration(
+              color: isSelected ? background : const Color(0xFFF8FAFD),
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(
+                color: isSelected
+                    ? color.withValues(alpha: 0.35)
+                    : const Color(0xFFE8EEF6),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, color: color, size: 19),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    option,
+                    style: TextStyle(
+                      color: enabled || isSelected
+                          ? const Color(0xFF334155)
+                          : const Color(0xFF94A3B8),
+                      fontSize: 13,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (isSelected)
+                  Icon(Icons.check_circle_rounded, color: color, size: 19),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMyTaskCard(Map<String, dynamic> task) {
+    final title = (task['judul'] ?? task['title'] ?? 'Tugas tanpa judul')
+        .toString();
+    final description = (task['deskripsi'] ?? task['description'] ?? '')
+        .toString()
+        .trim();
+    final status = _myTaskStatus(task);
+    final (statusColor, statusBackground, _) = _myTaskStatusStyle(status);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showMyTaskDetails(task),
+          borderRadius: BorderRadius.circular(16),
+          child: Ink(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFDCE8F5)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0D172033),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.assignment_outlined,
+                      color: _primary,
+                      size: 21,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _ink,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusBackground,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        status,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (description.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _muted,
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Icon(Icons.event_outlined, color: _primary, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      _myTaskDeadline(task),
+                      style: const TextStyle(
+                        color: _muted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Spacer(),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: _muted,
+                      size: 18,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _openAgentMap({String? agentId}) async {
     await Navigator.pushNamed(
       context,
@@ -248,6 +940,19 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
         'VIEW_ALL_BRANCHES': false,
         'SHOW_INDONESIA_MAP_BUTTON': false,
       },
+    );
+  }
+
+  Future<void> _openMyTasks() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AgentTaskPage(
+          agent: widget.user,
+          pageTitle: 'Tugas Saya',
+          canManageTasks: true,
+          canAddTasks: true,
+        ),
+      ),
     );
   }
 
@@ -1178,8 +1883,10 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
             icon: const Icon(Icons.logout_rounded, color: Colors.red),
           ),
           IconButton(
-            tooltip: 'Muat ulang daftar agen',
-            onPressed: _isLoading ? null : _loadAgents,
+            tooltip: 'Muat ulang dashboard',
+            onPressed: _isLoading || _isLoadingMyTasks
+                ? null
+                : _refreshDashboard,
             icon: const Icon(Icons.refresh_rounded, color: _primary),
           ),
         ],
@@ -1193,7 +1900,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
           ),
         ),
         child: RefreshIndicator(
-          onRefresh: _loadAgents,
+          onRefresh: _refreshDashboard,
           child: ListView(
             padding: const EdgeInsets.fromLTRB(18, 20, 18, 28),
             children: [
@@ -1315,6 +2022,110 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
                   ),
                 ],
               ),
+              const SizedBox(height: 14),
+              Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                child: InkWell(
+                  onTap: _openMyTasks,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Ink(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFDCE8F5)),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x0D172033),
+                          blurRadius: 12,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEAF3FF),
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                          child: const Icon(
+                            Icons.checklist_rounded,
+                            color: _primary,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Tugas Saya',
+                                style: TextStyle(
+                                  color: _ink,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              SizedBox(height: 3),
+                              Text(
+                                'Buat dan kelola tugas pribadi',
+                                style: TextStyle(color: _muted, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded, color: _muted),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Daftar Tugas Saya',
+                      style: TextStyle(
+                        color: _ink,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'Tugas pribadi milik $_displayName.',
+                style: const TextStyle(color: _muted, fontSize: 13),
+              ),
+              const SizedBox(height: 14),
+              if (_isLoadingMyTasks)
+                const Padding(
+                  padding: EdgeInsets.all(36),
+                  child: Center(
+                    child: CircularProgressIndicator(color: _primary),
+                  ),
+                )
+              else if (_myTasksError != null)
+                _StatusCard(
+                  icon: Icons.cloud_off_rounded,
+                  message: _myTasksError!,
+                  actionLabel: 'Coba lagi',
+                  onPressed: _loadMyTasks,
+                )
+              else if (_unfinishedMyTasks.isEmpty)
+                const _StatusCard(
+                  icon: Icons.assignment_outlined,
+                  message: 'Belum ada tugas pribadi yang belum selesai.',
+                )
+              else
+                for (final task in _unfinishedMyTasks) _buildMyTaskCard(task),
               const SizedBox(height: 24),
               Row(
                 children: [

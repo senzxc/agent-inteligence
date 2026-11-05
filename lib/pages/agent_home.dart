@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
@@ -99,32 +101,7 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
     });
 
     try {
-      final result = await ApiService.getAgentTasks(_agentId);
-      final statusCode = result['statusCode'];
-      final responseData = result['data'];
-
-      if (statusCode != 200 || responseData is! Map) {
-        throw Exception(
-          responseData is Map
-              ? responseData['message']?.toString() ??
-                    'Gagal mengambil daftar tugas.'
-              : 'Format respons server tidak sesuai.',
-        );
-      }
-
-      final payload = Map<String, dynamic>.from(responseData);
-      dynamic rawTasks = payload['tasks'] ?? payload['data'];
-
-      if (rawTasks is Map) {
-        rawTasks = rawTasks['tasks'] ?? rawTasks['items'] ?? rawTasks['data'];
-      }
-
-      final parsedTasks = rawTasks is List
-          ? rawTasks
-                .whereType<Map>()
-                .map((item) => Map<String, dynamic>.from(item))
-                .toList()
-          : <Map<String, dynamic>>[];
+      final parsedTasks = await _fetchTasks();
 
       if (!mounted) return;
 
@@ -142,6 +119,38 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
     }
   }
 
+  Future<List<Map<String, dynamic>>> _fetchTasks() async {
+    final result = await ApiService.getAgentTasks(_agentId)
+        .timeout(const Duration(seconds: 15));
+    final statusCode = result['statusCode'];
+    final responseData = result['data'];
+
+    if (statusCode != 200 || responseData is! Map) {
+      throw Exception(
+        responseData is Map
+            ? responseData['message']?.toString() ??
+                  'Gagal mengambil daftar tugas.'
+            : 'Format respons server tidak sesuai.',
+      );
+    }
+
+    final payload = Map<String, dynamic>.from(responseData);
+    dynamic rawTasks = payload['tasks'] ?? payload['data'];
+
+    if (rawTasks is Map) {
+      rawTasks = rawTasks['tasks'] ?? rawTasks['items'] ?? rawTasks['data'];
+    }
+
+    final parsedTasks = rawTasks is List
+        ? rawTasks
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList()
+        : <Map<String, dynamic>>[];
+
+    return parsedTasks;
+  }
+
   String _status(Map<String, dynamic> task) {
     final value = (task['status'] ?? task['STATUS'] ?? 'Belum dimulai')
         .toString();
@@ -152,6 +161,39 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
 
     return 'Belum dimulai';
   }
+
+  String _taskId(Map<String, dynamic> task) {
+    return (task['id'] ??
+            task['taskId'] ??
+            task['task_id'] ??
+            task['idTugas'] ??
+            '')
+        .toString()
+        .trim();
+  }
+
+  (Color, Color, IconData) _statusStyle(String status) {
+    return switch (status) {
+      'Berjalan' => (
+        const Color(0xFFC2410C),
+        const Color(0xFFFFF7ED),
+        Icons.autorenew_rounded,
+      ),
+      'Selesai' => (
+        const Color(0xFF15803D),
+        const Color(0xFFF0FDF4),
+        Icons.check_circle_outline_rounded,
+      ),
+      _ => (
+        _primary,
+        const Color(0xFFEAF3FF),
+        Icons.radio_button_unchecked_rounded,
+      ),
+    };
+  }
+
+  List<Map<String, dynamic>> get _unfinishedTasks =>
+      _tasks.where((task) => _status(task) != 'Selesai').toList();
 
   String _title(Map<String, dynamic> task) {
     return (task['judul'] ?? task['title'] ?? 'Tugas tanpa judul').toString();
@@ -185,6 +227,453 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
     ];
 
     return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  String _createdAt(Map<String, dynamic> task) {
+    final raw = (task['createdAt'] ?? task['created_at'] ?? task['created'])
+        ?.toString()
+        .trim();
+    final date = raw == null ? null : DateTime.tryParse(raw);
+    if (date == null) return 'Tidak tersedia';
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des',
+    ];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  Future<void> _showTaskDetails(Map<String, dynamic> task) async {
+    var selectedStatus = _status(task);
+    var isUpdatingStatus = false;
+    String? statusError;
+
+    Future<void> updateStatus(
+      String nextStatus,
+      StateSetter setDialogState,
+      BuildContext dialogContext,
+    ) async {
+      if (nextStatus == selectedStatus ||
+          selectedStatus == 'Selesai' ||
+          isUpdatingStatus) {
+        return;
+      }
+
+      final taskId = _taskId(task);
+      if (taskId.isEmpty) {
+        setDialogState(() {
+          statusError = 'ID tugas tidak ditemukan pada respons server.';
+        });
+        return;
+      }
+
+      setDialogState(() {
+        isUpdatingStatus = true;
+        statusError = null;
+      });
+
+      try {
+        Map response;
+        try {
+          final result = await ApiService.updateTaskStatus(
+            taskId: taskId,
+            status: nextStatus,
+          ).timeout(const Duration(seconds: 15));
+          final resultData = result['data'];
+          if (result['statusCode'] != 200 ||
+              resultData is! Map ||
+              resultData['success'] != true) {
+            throw Exception(
+              resultData is Map
+                  ? resultData['message']?.toString() ??
+                        'Gagal memperbarui status tugas.'
+                  : 'Format respons perubahan status tidak valid.',
+            );
+          }
+          response = resultData;
+        } on TimeoutException {
+          final refreshedTasks = await _fetchTasks();
+          Map<String, dynamic>? refreshedTask;
+          for (final item in refreshedTasks) {
+            if (_taskId(item) == taskId) {
+              refreshedTask = item;
+              break;
+            }
+          }
+          if (refreshedTask == null || _status(refreshedTask) != nextStatus) {
+            throw Exception(
+              'Server terlalu lama merespons. Status tugas belum diperbarui.',
+            );
+          }
+          response = {'success': true, 'data': refreshedTask};
+        }
+
+        if (response['success'] != true) {
+          throw Exception(
+            response['message']?.toString() ??
+                'Gagal memperbarui status tugas.',
+          );
+        }
+
+        if (!mounted || !dialogContext.mounted) return;
+        setState(() {
+          final index = _tasks.indexWhere((item) => _taskId(item) == taskId);
+          if (index >= 0) {
+            final updatedTask = response['data'];
+            _tasks[index] = {
+              ..._tasks[index],
+              if (updatedTask is Map) ...Map<String, dynamic>.from(updatedTask),
+              'status': nextStatus,
+              'updatedAt': DateTime.now().toIso8601String(),
+              if (nextStatus == 'Selesai')
+                'completedAt': DateTime.now().toIso8601String()
+              else
+                'completedAt': null,
+            };
+          }
+        });
+        setDialogState(() {
+          selectedStatus = nextStatus;
+        });
+      } catch (error) {
+        if (!mounted || !dialogContext.mounted) return;
+        setDialogState(() {
+          statusError = error.toString().replaceFirst('Exception: ', '');
+        });
+      } finally {
+        if (mounted && dialogContext.mounted) {
+          setDialogState(() {
+            isUpdatingStatus = false;
+          });
+        }
+      }
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final (statusColor, statusBackground, statusIcon) = _statusStyle(
+            selectedStatus,
+          );
+          final isCompleted = selectedStatus == 'Selesai';
+
+          return Dialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 24,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: 520,
+                maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.86,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(22, 22, 16, 22),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF0D47A1), Color(0xFF1B72D7)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.16),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.28),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.assignment_outlined,
+                              color: Colors.white,
+                              size: 23,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'DETAIL TUGAS',
+                                  style: TextStyle(
+                                    color: Color(0xFFDCEBFF),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 1.1,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _title(task),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Tutup',
+                            onPressed: () => Navigator.pop(dialogContext),
+                            icon: const Icon(Icons.close, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 9,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusBackground,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: statusColor.withValues(alpha: 0.2),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    statusIcon,
+                                    size: 15,
+                                    color: statusColor,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    selectedStatus,
+                                    style: TextStyle(
+                                      color: statusColor,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            const Text(
+                              'UBAH STATUS',
+                              style: TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            for (final option in const [
+                              'Belum dimulai',
+                              'Berjalan',
+                              'Selesai',
+                            ])
+                              _buildStatusChoice(
+                                option: option,
+                                selectedStatus: selectedStatus,
+                                enabled: !isCompleted && !isUpdatingStatus,
+                                onTap: () => updateStatus(
+                                  option,
+                                  setDialogState,
+                                  dialogContext,
+                                ),
+                              ),
+                            if (isUpdatingStatus) ...[
+                              const SizedBox(height: 6),
+                              const LinearProgressIndicator(
+                                minHeight: 3,
+                                color: _primary,
+                                backgroundColor: Color(0xFFEAF3FF),
+                              ),
+                            ],
+                            if (statusError != null) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                statusError!,
+                                style: const TextStyle(
+                                  color: Color(0xFFB91C1C),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                            if (isCompleted) ...[
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Tugas yang sudah selesai tidak dapat diubah kembali.',
+                                style: TextStyle(
+                                  color: Color(0xFF64748B),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 18),
+                            const Text(
+                              'DESKRIPSI',
+                              style: TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFD),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: const Color(0xFFE8EEF6),
+                                ),
+                              ),
+                              child: Text(
+                                _description(task).isEmpty
+                                    ? 'Tidak ada deskripsi.'
+                                    : _description(task),
+                                style: const TextStyle(
+                                  color: Color(0xFF334155),
+                                  fontSize: 14,
+                                  height: 1.55,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            _TaskDetailTile(
+                              icon: Icons.event_outlined,
+                              label: 'Tenggat',
+                              value: _deadline(task),
+                            ),
+                            _TaskDetailTile(
+                              icon: Icons.calendar_today_outlined,
+                              label: 'Tanggal dibuat',
+                              value: _createdAt(task),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        border: Border(
+                          top: BorderSide(color: Color(0xFFE8EEF6)),
+                        ),
+                      ),
+                      child: SizedBox(
+                        height: 46,
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(dialogContext),
+                          child: const Text('Tutup'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildStatusChoice({
+    required String option,
+    required String selectedStatus,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    final isSelected = option == selectedStatus;
+    final (color, background, icon) = _statusStyle(option);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          borderRadius: BorderRadius.circular(13),
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+            decoration: BoxDecoration(
+              color: isSelected ? background : const Color(0xFFF8FAFD),
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(
+                color: isSelected
+                    ? color.withValues(alpha: 0.35)
+                    : const Color(0xFFE8EEF6),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, color: color, size: 19),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    option,
+                    style: TextStyle(
+                      color: enabled || isSelected
+                          ? const Color(0xFF334155)
+                          : const Color(0xFF94A3B8),
+                      fontSize: 13,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (isSelected)
+                  Icon(Icons.check_circle_rounded, color: color, size: 19),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _openAllTasks() {
@@ -623,7 +1112,8 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
       );
     }
 
-    if (_tasks.isEmpty) {
+    final unfinishedTasks = _unfinishedTasks;
+    if (unfinishedTasks.isEmpty) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 28),
         decoration: BoxDecoration(
@@ -631,12 +1121,12 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: const Color(0xFFDCE8F5)),
         ),
-        child: const Column(
+        child: Column(
           children: [
             Icon(Icons.assignment_outlined, size: 42, color: Color(0xFF94A3B8)),
             SizedBox(height: 10),
             Text(
-              'Belum ada tugas',
+              _tasks.isEmpty ? 'Belum ada tugas' : 'Semua tugas sudah selesai',
               style: TextStyle(
                 color: _textPrimary,
                 fontWeight: FontWeight.w700,
@@ -645,7 +1135,9 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
             ),
             SizedBox(height: 5),
             Text(
-              'Tugas yang kamu buat akan muncul di sini.',
+              _tasks.isEmpty
+                  ? 'Tugas yang kamu buat akan muncul di sini.'
+                  : 'Tugas yang belum selesai akan muncul di sini.',
               textAlign: TextAlign.center,
               style: TextStyle(color: _textSecondary, fontSize: 12),
             ),
@@ -654,7 +1146,7 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
       );
     }
 
-    final recentTasks = _tasks.take(3).toList();
+    final recentTasks = unfinishedTasks.take(3).toList();
 
     return Column(children: recentTasks.map(_buildTaskCard).toList());
   }
@@ -685,132 +1177,199 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
 
     final description = _description(task);
 
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(19),
-        border: Border.all(color: const Color(0xFFDCE8F5)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0C0D47A1),
-            blurRadius: 14,
-            offset: Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEAF3FF),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: const Icon(
-                  Icons.assignment_rounded,
-                  color: _primary,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _title(task),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          height: 1.35,
-                        ),
-                      ),
-                      const SizedBox(height: 7),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: statusBackground,
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(statusIcon, size: 13, color: statusColor),
-                            const SizedBox(width: 5),
-                            Text(
-                              status,
-                              style: TextStyle(
-                                color: statusColor,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+    return GestureDetector(
+      onTap: () => _showTaskDetails(task),
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(19),
+          border: Border.all(color: const Color(0xFFDCE8F5)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0C0D47A1),
+              blurRadius: 14,
+              offset: Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEAF3FF),
+                    borderRadius: BorderRadius.circular(13),
                   ),
+                  child: const Icon(
+                    Icons.assignment_rounded,
+                    color: _primary,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _title(task),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: _textPrimary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 7),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusBackground,
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(statusIcon, size: 13, color: statusColor),
+                              const SizedBox(width: 5),
+                              Text(
+                                status,
+                                style: TextStyle(
+                                  color: statusColor,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (description.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                description,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _textSecondary,
+                  fontSize: 12,
+                  height: 1.5,
                 ),
               ),
             ],
-          ),
-          if (description.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(
-              description,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: _textSecondary,
-                fontSize: 12,
-                height: 1.5,
-              ),
+            const SizedBox(height: 13),
+            const Divider(height: 1, color: Color(0xFFE8EEF6)),
+            const SizedBox(height: 11),
+            Row(
+              children: [
+                const Icon(
+                  Icons.calendar_month_outlined,
+                  size: 16,
+                  color: _textSecondary,
+                ),
+                const SizedBox(width: 7),
+                const Text(
+                  'Tenggat',
+                  style: TextStyle(color: _textSecondary, fontSize: 11),
+                ),
+                const Spacer(),
+                Flexible(
+                  child: Text(
+                    _deadline(task),
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      color: _textPrimary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
-          const SizedBox(height: 13),
-          const Divider(height: 1, color: Color(0xFFE8EEF6)),
-          const SizedBox(height: 11),
-          Row(
-            children: [
-              const Icon(
-                Icons.calendar_month_outlined,
-                size: 16,
-                color: _textSecondary,
-              ),
-              const SizedBox(width: 7),
-              const Text(
-                'Tenggat',
-                style: TextStyle(color: _textSecondary, fontSize: 11),
-              ),
-              const Spacer(),
-              Flexible(
-                child: Text(
-                  _deadline(task),
-                  textAlign: TextAlign.right,
+        ),
+      ),
+    );
+  }
+}
+
+class _TaskDetailTile extends StatelessWidget {
+  const _TaskDetailTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 9),
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFD),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE8EEF6)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE7F0FF),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, color: const Color(0xFF1565C0), size: 19),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
                   style: const TextStyle(
-                    color: _textPrimary,
-                    fontSize: 11,
+                    color: Color(0xFF64748B),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Color(0xFF14264D),
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
