@@ -4,6 +4,7 @@ const cors = require('cors');
 const crypto = require('crypto');
 const fs = require('fs/promises');
 const path = require('path');
+const multer = require('multer');
 require('dotenv').config();
 
 const { getConnection } = require('./database');
@@ -50,6 +51,78 @@ function stopAgentTracking(stambuk) {
 
 const TASKS_DIR = path.join(__dirname, 'data');
 const TASKS_FILE = path.join(TASKS_DIR, 'tugas.json');
+const PROFILE_PHOTO_DIR = process.env.PROFILE_PHOTO_DIR ||
+    path.join(__dirname, 'uploads', 'profile-photos');
+const PROFILE_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+const profilePhotoUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: PROFILE_PHOTO_MAX_BYTES,
+        files: 1,
+        fields: 0,
+        parts: 1,
+    },
+});
+
+function getProfilePhotoMetadataPath(agentId) {
+    const agentKey = crypto
+        .createHash('sha256')
+        .update(String(agentId))
+        .digest('hex');
+    return path.join(PROFILE_PHOTO_DIR, `${agentKey}.json`);
+}
+
+function getProfilePhotoType(buffer) {
+    if (
+        buffer.length >= 3 &&
+        buffer[0] === 0xff &&
+        buffer[1] === 0xd8 &&
+        buffer[2] === 0xff
+    ) {
+        return { extension: '.jpg', mimeType: 'image/jpeg' };
+    }
+
+    if (
+        buffer.length >= 8 &&
+        buffer.subarray(0, 8).equals(
+            Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+        )
+    ) {
+        return { extension: '.png', mimeType: 'image/png' };
+    }
+
+    if (
+        buffer.length >= 12 &&
+        buffer.toString('ascii', 0, 4) === 'RIFF' &&
+        buffer.toString('ascii', 8, 12) === 'WEBP'
+    ) {
+        return { extension: '.webp', mimeType: 'image/webp' };
+    }
+
+    return null;
+}
+
+async function readProfilePhotoMetadata(agentId) {
+    try {
+        const content = await fs.readFile(
+            getProfilePhotoMetadataPath(agentId),
+            'utf8'
+        );
+        const metadata = JSON.parse(content);
+        if (
+            typeof metadata.filename !== 'string' ||
+            path.basename(metadata.filename) !== metadata.filename ||
+            !/^[0-9a-f-]+\.(jpg|png|webp)$/.test(metadata.filename) ||
+            !['image/jpeg', 'image/png', 'image/webp'].includes(metadata.mimeType)
+        ) {
+            throw new Error('Metadata foto profil tidak valid.');
+        }
+        return metadata;
+    } catch (error) {
+        if (error.code === 'ENOENT') return null;
+        throw error;
+    }
+}
 
 async function readTasks() {
     await fs.mkdir(TASKS_DIR, { recursive: true });
@@ -671,6 +744,155 @@ app.patch(
             if (connection) {
                 await connection.close().catch(console.error);
             }
+        }
+    }
+);
+
+app.get(
+    '/api/auth/profile/photo',
+    authenticate,
+    requireRoles('HEAD_MARKETING', 'HEAD_AGENT', 'AGENT'),
+    async (req, res) => {
+        const agentId = String(req.authUser.I_AGEN ?? '').trim();
+        if (!agentId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Profil agen tidak ditemukan pada sesi ini',
+            });
+        }
+
+        try {
+            const metadata = await readProfilePhotoMetadata(agentId);
+            if (!metadata) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Foto profil belum diunggah',
+                });
+            }
+
+            const photo = await fs.readFile(
+                path.join(PROFILE_PHOTO_DIR, metadata.filename)
+            );
+            res.set({
+                'Content-Type': metadata.mimeType,
+                'Cache-Control': 'private, no-store',
+                'X-Content-Type-Options': 'nosniff',
+            });
+            return res.send(photo);
+        } catch (error) {
+            console.error('Get Agent Profile Photo Error:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Gagal mengambil foto profil',
+            });
+        }
+    }
+);
+
+app.post(
+    '/api/auth/profile/photo',
+    authenticate,
+    requireRoles('HEAD_MARKETING', 'HEAD_AGENT', 'AGENT'),
+    (req, res, next) => {
+        profilePhotoUpload.single('photo')(req, res, error => {
+            if (error) {
+                if (error instanceof multer.MulterError) {
+                    const statusCode = error.code === 'LIMIT_FILE_SIZE'
+                        ? 413
+                        : 400;
+                    const message = error.code === 'LIMIT_FILE_SIZE'
+                        ? 'Ukuran foto maksimal 5 MB'
+                        : 'Unggahan foto tidak valid';
+                    return res.status(statusCode).json({
+                        success: false,
+                        message,
+                    });
+                }
+                return next(error);
+            }
+            return next();
+        });
+    },
+    async (req, res) => {
+        const agentId = String(req.authUser.I_AGEN ?? '').trim();
+        if (!agentId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Profil agen tidak ditemukan pada sesi ini',
+            });
+        }
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'Pilih foto profil terlebih dahulu',
+            });
+        }
+
+        const photoType = getProfilePhotoType(req.file.buffer);
+        if (!photoType) {
+            return res.status(415).json({
+                success: false,
+                message: 'Format foto harus JPEG, PNG, atau WebP',
+            });
+        }
+
+        const metadataPath = getProfilePhotoMetadataPath(agentId);
+        const filename = `${crypto.randomUUID()}${photoType.extension}`;
+        const tempMetadataPath = `${metadataPath}.${crypto.randomUUID()}.tmp`;
+        const newPhotoPath = path.join(PROFILE_PHOTO_DIR, filename);
+        let previousMetadata;
+
+        try {
+            await fs.mkdir(PROFILE_PHOTO_DIR, { recursive: true });
+            previousMetadata = await readProfilePhotoMetadata(agentId);
+            await fs.writeFile(newPhotoPath, req.file.buffer, { flag: 'wx' });
+            await fs.writeFile(
+                tempMetadataPath,
+                JSON.stringify({
+                    filename,
+                    mimeType: photoType.mimeType,
+                    updatedAt: new Date().toISOString(),
+                }),
+                { flag: 'wx' }
+            );
+            await fs.rename(tempMetadataPath, metadataPath);
+
+            if (
+                previousMetadata &&
+                previousMetadata.filename !== filename
+            ) {
+                await fs.unlink(
+                    path.join(PROFILE_PHOTO_DIR, previousMetadata.filename)
+                ).catch(error => {
+                    if (error.code !== 'ENOENT') {
+                        console.error('Remove previous profile photo Error:', error);
+                    }
+                });
+            }
+
+            return res.json({
+                success: true,
+                message: 'Foto profil berhasil diperbarui',
+                photo: {
+                    updatedAt: new Date().toISOString(),
+                },
+            });
+        } catch (error) {
+            await fs.unlink(newPhotoPath).catch(cleanupError => {
+                if (cleanupError.code !== 'ENOENT') {
+                    console.error('Remove incomplete profile photo Error:', cleanupError);
+                }
+            });
+            await fs.unlink(tempMetadataPath).catch(cleanupError => {
+                if (cleanupError.code !== 'ENOENT') {
+                    console.error('Remove temporary profile metadata Error:', cleanupError);
+                }
+            });
+            console.error('Update Agent Profile Photo Error:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Gagal menyimpan foto profil di server',
+            });
         }
     }
 );
