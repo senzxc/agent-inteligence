@@ -789,6 +789,120 @@ app.get(
     }
 );
 
+app.get(
+    '/api/agents/:agentId/profile/photo',
+    authenticate,
+    async (req, res) => {
+        let connection;
+
+        try {
+            const agentId = String(req.params.agentId ?? '').trim();
+            const authenticatedAgentId = String(
+                getAuthenticatedUserId(req.authUser) ?? ''
+            ).trim();
+            const role = req.authUser?.APP_ROLE ?? resolveAppRole(req.authUser);
+            const agencyRole = String(req.authUser?.C_AGENCY_JABATAN ?? '')
+                .trim()
+                .toUpperCase();
+            const subordinateRoles = getAgencySubordinateRoles(agencyRole);
+            const ownBranch = String(
+                req.authUser?.KODE_KANTOR ?? req.authUser?.KANTOR ?? ''
+            ).trim().toUpperCase();
+            const isSelf = agentId === authenticatedAgentId;
+            const canViewOtherAgents =
+                ['HEAD_MARKETING', 'HEAD_AGENT'].includes(role) ||
+                subordinateRoles !== null;
+
+            if (!agentId) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'ID agen wajib diisi',
+                });
+            }
+            if (!isSelf && !canViewOtherAgents) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Anda tidak memiliki akses untuk melihat foto agen',
+                });
+            }
+            if (!isSelf && subordinateRoles && !ownBranch) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Kode kantor akun tidak tersedia.',
+                });
+            }
+
+            connection = await getConnection();
+            const binds = { agentId };
+            const conditions = [
+                'a.STATUS = 1',
+                'b.I_AGEN = :agentId',
+            ];
+
+            if (!isSelf && subordinateRoles) {
+                conditions.push('UPPER(TRIM(c.KODE_KANTOR)) = :scopeKantor');
+                binds.scopeKantor = ownBranch;
+                const roleBindNames = subordinateRoles.map((subordinateRole, index) => {
+                    const bindName = `scopeRole${index}`;
+                    binds[bindName] = subordinateRole;
+                    return `:${bindName}`;
+                });
+                conditions.push(
+                    `UPPER(b.C_AGENCY_JABATAN) IN (${roleBindNames.join(', ')})`
+                );
+            }
+
+            const agentResult = await connection.execute(
+                `
+                SELECT b.I_AGEN
+                FROM DAFTAR_AGEN a
+                INNER JOIN TM_AGENCY2 b
+                    ON a.NOMOR_AGEN = b.I_AGEN
+                INNER JOIN DAFTAR_KANTOR c
+                    ON a.NOMOR_KANTOR = c.NOMOR_KANTOR
+                WHERE ${conditions.join(' AND ')}
+                `,
+                binds,
+                { outFormat: oracledb.OUT_FORMAT_OBJECT }
+            );
+            if (!agentResult.rows.length) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Agen tidak ditemukan atau tidak dapat diakses',
+                });
+            }
+
+            const metadata = await readProfilePhotoMetadata(agentId);
+            if (!metadata) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Foto profil belum diunggah',
+                });
+            }
+
+            const photo = await fs.readFile(
+                path.join(PROFILE_PHOTO_DIR, metadata.filename)
+            );
+            res.set({
+                'Content-Type': metadata.mimeType,
+                'Cache-Control': 'private, no-store',
+                'X-Content-Type-Options': 'nosniff',
+            });
+            return res.send(photo);
+        } catch (error) {
+            console.error('Get Agent Profile Photo By ID Error:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'Gagal mengambil foto profil agen',
+            });
+        } finally {
+            if (connection) {
+                await connection.close().catch(console.error);
+            }
+        }
+    }
+);
+
 app.post(
     '/api/auth/profile/photo',
     authenticate,
