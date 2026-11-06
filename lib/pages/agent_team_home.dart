@@ -7,6 +7,8 @@ import '../services/gps_tracking_service.dart';
 import '../utils/agency_role.dart';
 import '../utils/dashboard_route_observer.dart';
 import '../widgets/agent_marker.dart';
+import '../widgets/agent_profile_avatar.dart';
+import 'agent_profile_edit.dart';
 import 'agent_task.dart';
 
 enum _AgentQuickAction {
@@ -41,6 +43,8 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
   bool _isLoading = true;
   String? _error;
   List<Map<String, dynamic>> _myTasks = [];
+  Uint8List? _profilePhotoBytes;
+  String? _loadedPhotoAgentId;
   bool _isLoadingMyTasks = true;
   String? _myTasksError;
 
@@ -88,6 +92,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
     super.initState();
     _loadAgents();
     _loadMyTasks();
+    _loadProfilePhoto();
   }
 
   @override
@@ -107,6 +112,21 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
   void didPopNext() {
     _loadAgents();
     _loadMyTasks();
+    _loadProfilePhoto(force: true);
+  }
+
+  Future<void> _loadProfilePhoto({bool force = false}) async {
+    final agentId = _agentId.trim();
+    if (agentId.isEmpty || agentId == '-') return;
+    if (!force && _loadedPhotoAgentId == agentId) return;
+    _loadedPhotoAgentId = agentId;
+
+    try {
+      final photo = await ApiService.getMyProfilePhoto();
+      if (mounted) setState(() => _profilePhotoBytes = photo);
+    } catch (error) {
+      debugPrint('Gagal memuat foto profil agen: $error');
+    }
   }
 
   @override
@@ -175,8 +195,18 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
         final trackingAgent = agentId == null
             ? null
             : trackingAgentsById[agentId.toUpperCase()];
+        final trackingStatus = trackingAgent?['status']
+            ?.toString()
+            .trim()
+            .toLowerCase();
+        final trackingFlag = trackingAgent?['isTracking'];
+        final isTracking = trackingFlag is bool
+            ? trackingFlag
+            : trackingFlag != null
+            ? trackingFlag.toString().trim().toLowerCase() == 'true'
+            : trackingStatus == 'active';
         profile
-          ..['isTracking'] = trackingAgent != null
+          ..['isTracking'] = isTracking
           ..['trackingStartedAt'] = trackingAgent?['startedAt']
           ..['latitude'] = trackingAgent?['latitude']
           ..['longitude'] = trackingAgent?['longitude']
@@ -954,6 +984,23 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
         ),
       ),
     );
+  }
+
+  Future<void> _editProfile() async {
+    final updatedProfile = await Navigator.of(context)
+        .push<Map<String, dynamic>>(
+          MaterialPageRoute<Map<String, dynamic>>(
+            builder: (_) => AgentProfileEditPage(
+              agent: widget.user,
+              loadLatestProfile: true,
+            ),
+          ),
+        );
+    if (!mounted) return;
+    if (updatedProfile != null) {
+      setState(() => widget.user.addAll(updatedProfile));
+    }
+    await _loadProfilePhoto(force: true);
   }
 
   Future<void> _showAgentQuickMenu(
@@ -1928,14 +1975,11 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
                   children: [
                     Row(
                       children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.16),
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                          child: const Icon(
+                        AgentProfileAvatar(
+                          photoBytes: _profilePhotoBytes,
+                          size: 48,
+                          borderRadius: 15,
+                          placeholder: const Icon(
                             Icons.person_outline_rounded,
                             color: Colors.white,
                             size: 28,
@@ -1967,6 +2011,28 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
                             ],
                           ),
                         ),
+                        if (_agentId != '-')
+                          Material(
+                            color: Colors.white.withValues(alpha: 0.16),
+                            shape: const CircleBorder(
+                              side: BorderSide(color: Color(0x55FFFFFF)),
+                            ),
+                            child: IconButton(
+                              tooltip: 'Edit profil',
+                              visualDensity: VisualDensity.compact,
+                              constraints: const BoxConstraints.tightFor(
+                                width: 38,
+                                height: 38,
+                              ),
+                              padding: EdgeInsets.zero,
+                              onPressed: _editProfile,
+                              icon: const Icon(
+                                Icons.edit_outlined,
+                                color: Colors.white,
+                                size: 19,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 18),
