@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../services/gps_tracking_service.dart';
 import '../utils/dashboard_route_observer.dart';
+import '../widgets/agent_profile_avatar.dart';
+import 'agent_profile_edit.dart';
 import '../pages/agent_task.dart';
 
 class AgentHomePage extends StatefulWidget {
@@ -25,6 +28,8 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
   static const Color _textSecondary = Color(0xFF64748B);
 
   List<Map<String, dynamic>> _tasks = [];
+  Uint8List? _profilePhotoBytes;
+  String? _loadedPhotoAgentId;
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -60,6 +65,7 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
   void initState() {
     super.initState();
     _loadTasks();
+    _loadProfilePhoto();
   }
 
   @override
@@ -78,6 +84,21 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
   @override
   void didPopNext() {
     _loadTasks();
+    _loadProfilePhoto(force: true);
+  }
+
+  Future<void> _loadProfilePhoto({bool force = false}) async {
+    final agentId = _firstValue(['I_AGEN'], fallback: '');
+    if (agentId.isEmpty || agentId == '-') return;
+    if (!force && _loadedPhotoAgentId == agentId) return;
+    _loadedPhotoAgentId = agentId;
+
+    try {
+      final photo = await ApiService.getMyProfilePhoto();
+      if (mounted) setState(() => _profilePhotoBytes = photo);
+    } catch (error) {
+      debugPrint('Gagal memuat foto profil agen: $error');
+    }
   }
 
   @override
@@ -684,6 +705,23 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
     );
   }
 
+  Future<void> _editProfile() async {
+    final updatedProfile = await Navigator.of(context)
+        .push<Map<String, dynamic>>(
+          MaterialPageRoute<Map<String, dynamic>>(
+            builder: (_) => AgentProfileEditPage(
+              agent: widget.user,
+              loadLatestProfile: true,
+            ),
+          ),
+        );
+    if (!mounted) return;
+    if (updatedProfile != null) {
+      setState(() => widget.user.addAll(updatedProfile));
+    }
+    await _loadProfilePhoto(force: true);
+  }
+
   Future<void> _confirmLogout() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -926,14 +964,11 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
         children: [
           Row(
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: const Icon(
+              AgentProfileAvatar(
+                photoBytes: _profilePhotoBytes,
+                size: 48,
+                borderRadius: 15,
+                placeholder: const Icon(
                   Icons.person_outline_rounded,
                   color: Colors.white,
                   size: 28,
@@ -965,6 +1000,30 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
                   ],
                 ),
               ),
+              if (_firstValue(['I_AGEN'], fallback: '').isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Material(
+                  color: Colors.white.withValues(alpha: 0.16),
+                  shape: const CircleBorder(
+                    side: BorderSide(color: Color(0x55FFFFFF)),
+                  ),
+                  child: IconButton(
+                    tooltip: 'Edit profil',
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 38,
+                      height: 38,
+                    ),
+                    padding: EdgeInsets.zero,
+                    onPressed: _editProfile,
+                    icon: const Icon(
+                      Icons.edit_outlined,
+                      color: Colors.white,
+                      size: 19,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 18),
