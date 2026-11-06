@@ -63,6 +63,15 @@ const profilePhotoUpload = multer({
         parts: 1,
     },
 });
+const profileUpdateUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: PROFILE_PHOTO_MAX_BYTES,
+        files: 1,
+        fields: 1,
+        parts: 2,
+    },
+});
 
 function getProfilePhotoMetadataPath(agentId) {
     const agentKey = crypto
@@ -121,6 +130,129 @@ async function readProfilePhotoMetadata(agentId) {
     } catch (error) {
         if (error.code === 'ENOENT') return null;
         throw error;
+    }
+}
+
+async function applyProfilePhotoChange({
+    agentId,
+    photoFile,
+    photoType,
+    removePhoto,
+}) {
+    const metadataPath = getProfilePhotoMetadataPath(agentId);
+    const previousMetadata = await readProfilePhotoMetadata(agentId);
+    const previousPhotoPath = previousMetadata
+        ? path.join(PROFILE_PHOTO_DIR, previousMetadata.filename)
+        : null;
+    let previousPhotoBytes = null;
+    if (previousPhotoPath) {
+        try {
+            previousPhotoBytes = await fs.readFile(previousPhotoPath);
+        } catch (error) {
+            if (error.code !== 'ENOENT') throw error;
+        }
+    }
+
+    const change = {
+        metadataPath,
+        previousMetadata,
+        previousPhotoPath,
+        previousPhotoBytes,
+        newPhotoPath: null,
+        temporaryMetadataPath: null,
+        metadataChanged: false,
+        previousPhotoRemoved: false,
+    };
+
+    try {
+        await fs.mkdir(PROFILE_PHOTO_DIR, { recursive: true });
+
+        if (photoFile) {
+            const filename = `${crypto.randomUUID()}${photoType.extension}`;
+            change.newPhotoPath = path.join(PROFILE_PHOTO_DIR, filename);
+            change.temporaryMetadataPath =
+                `${metadataPath}.${crypto.randomUUID()}.tmp`;
+
+            await fs.writeFile(change.newPhotoPath, photoFile.buffer, {
+                flag: 'wx',
+            });
+            await fs.writeFile(
+                change.temporaryMetadataPath,
+                JSON.stringify({
+                    filename,
+                    mimeType: photoType.mimeType,
+                    updatedAt: new Date().toISOString(),
+                }),
+                { flag: 'wx' }
+            );
+            await fs.rename(change.temporaryMetadataPath, metadataPath);
+            change.temporaryMetadataPath = null;
+            change.metadataChanged = true;
+        } else if (removePhoto) {
+            await fs.unlink(metadataPath).catch(error => {
+                if (error.code !== 'ENOENT') throw error;
+            });
+            change.metadataChanged = true;
+        }
+
+        if (
+            previousPhotoPath &&
+            (removePhoto || photoFile) &&
+            (!photoFile ||
+                path.basename(change.newPhotoPath) !==
+                    previousMetadata.filename)
+        ) {
+            await fs.unlink(previousPhotoPath).catch(error => {
+                if (error.code !== 'ENOENT') throw error;
+            });
+            change.previousPhotoRemoved = previousPhotoBytes !== null;
+        }
+
+        return change;
+    } catch (error) {
+        await rollbackProfilePhotoChange(change).catch(rollbackError => {
+            console.error('Rollback Agent Profile Photo Error:', rollbackError);
+        });
+        throw error;
+    }
+}
+
+async function rollbackProfilePhotoChange(change) {
+    if (change.metadataChanged) {
+        if (change.previousMetadata) {
+            const restorePath =
+                `${change.metadataPath}.${crypto.randomUUID()}.tmp`;
+            await fs.writeFile(
+                restorePath,
+                JSON.stringify(change.previousMetadata),
+                { flag: 'wx' }
+            );
+            await fs.rename(restorePath, change.metadataPath);
+        } else {
+            await fs.unlink(change.metadataPath).catch(error => {
+                if (error.code !== 'ENOENT') throw error;
+            });
+        }
+    }
+
+    if (
+        change.previousPhotoRemoved &&
+        change.previousPhotoPath &&
+        change.previousPhotoBytes
+    ) {
+        await fs.writeFile(change.previousPhotoPath, change.previousPhotoBytes, {
+            flag: 'wx',
+        });
+    }
+    if (change.newPhotoPath) {
+        await fs.unlink(change.newPhotoPath).catch(error => {
+            if (error.code !== 'ENOENT') throw error;
+        });
+    }
+    if (change.temporaryMetadataPath) {
+        await fs.unlink(change.temporaryMetadataPath).catch(error => {
+            if (error.code !== 'ENOENT') throw error;
+        });
     }
 }
 
@@ -564,10 +696,30 @@ app.patch(
     '/api/auth/profile',
     authenticate,
     requireRoles('HEAD_MARKETING', 'HEAD_AGENT', 'AGENT'),
+    (req, res, next) => {
+        if (!req.is('multipart/form-data')) return next();
+
+        profileUpdateUpload.single('photo')(req, res, error => {
+            if (error) {
+                if (error instanceof multer.MulterError) {
+                    const statusCode = error.code === 'LIMIT_FILE_SIZE'
+                        ? 413
+                        : 400;
+                    const message = error.code === 'LIMIT_FILE_SIZE'
+                        ? 'Ukuran foto maksimal 5 MB'
+                        : 'Data perubahan profil tidak valid';
+                    return res.status(statusCode).json({
+                        success: false,
+                        message,
+                    });
+                }
+                return next(error);
+            }
+            return next();
+        });
+    },
     async (req, res) => {
         const agentId = String(req.authUser.I_AGEN ?? '').trim();
-        const { phone, email, address, birthDate } = req.body ?? {};
-
         if (!agentId) {
             return res.status(403).json({
                 success: false,
@@ -575,33 +727,85 @@ app.patch(
             });
         }
 
+        let profileData = req.body ?? {};
+        if (req.is('multipart/form-data')) {
+            try {
+                profileData = JSON.parse(req.body?.profile ?? '{}');
+            } catch {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Data perubahan profil tidak valid',
+                });
+            }
+        }
         if (
-            typeof phone !== 'string' ||
-            typeof email !== 'string' ||
-            typeof address !== 'string'
+            profileData === null ||
+            typeof profileData !== 'object' ||
+            Array.isArray(profileData)
         ) {
             return res.status(400).json({
                 success: false,
-                message: 'Nomor telepon, email, dan alamat wajib diisi',
+                message: 'Data perubahan profil tidak valid',
             });
         }
 
-        const normalizedPhone = phone.trim();
-        const normalizedEmail = email.trim();
-        const normalizedAddress = address.trim();
-        const normalizedBirthDate = birthDate == null
-            ? null
-            : String(birthDate).trim();
+        const normalizeOptionalText = (value, fieldName) => {
+            if (value == null) return null;
+            if (typeof value !== 'string') {
+                throw new Error(`${fieldName} tidak valid`);
+            }
+            const normalized = value.trim();
+            return normalized || null;
+        };
+
+        let normalizedPhone;
+        let normalizedEmail;
+        let normalizedAddress;
+        let normalizedBirthDate;
+        try {
+            normalizedPhone = normalizeOptionalText(
+                profileData.phone,
+                'Nomor telepon'
+            );
+            normalizedEmail = normalizeOptionalText(profileData.email, 'Email');
+            normalizedAddress = normalizeOptionalText(
+                profileData.address,
+                'Alamat'
+            );
+            normalizedBirthDate = normalizeOptionalText(
+                profileData.birthDate,
+                'Tanggal lahir'
+            );
+        } catch (error) {
+            return res.status(400).json({
+                success: false,
+                message: error.message,
+            });
+        }
+
+        const removePhoto = profileData.removePhoto === true;
+        if (
+            (profileData.removePhoto != null &&
+                typeof profileData.removePhoto !== 'boolean') ||
+            (removePhoto && req.file)
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: 'Perubahan foto profil tidak valid',
+            });
+        }
+
         const parsedBirthDate = normalizedBirthDate
             ? new Date(`${normalizedBirthDate}T00:00:00.000Z`)
             : null;
 
         if (
-            !/^[0-9+().\-\s]{8,20}$/.test(normalizedPhone) ||
-            normalizedEmail.length > 254 ||
-            !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail) ||
-            normalizedAddress.length === 0 ||
-            normalizedAddress.length > 500 ||
+            (normalizedPhone != null &&
+                !/^[0-9+().\-\s]{8,20}$/.test(normalizedPhone)) ||
+            (normalizedEmail != null &&
+                (normalizedEmail.length > 254 ||
+                    !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(normalizedEmail))) ||
+            (normalizedAddress != null && normalizedAddress.length > 500) ||
             (normalizedBirthDate != null &&
                 (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedBirthDate) ||
                     Number.isNaN(parsedBirthDate.getTime()) ||
@@ -612,11 +816,23 @@ app.patch(
             return res.status(400).json({
                 success: false,
                 message:
-                    'Periksa kembali format nomor telepon, email, alamat, dan tanggal lahir',
+                    'Periksa kembali format data profil yang diisi',
+            });
+        }
+
+        const photoType = req.file
+            ? getProfilePhotoType(req.file.buffer)
+            : null;
+        if (req.file && !photoType) {
+            return res.status(415).json({
+                success: false,
+                message: 'Format foto harus JPEG, PNG, atau WebP',
             });
         }
 
         let connection;
+        let photoChange;
+        let databaseCommitted = false;
 
         try {
             connection = await getConnection();
@@ -652,63 +868,90 @@ app.patch(
                 });
             }
 
-            const agentResult = await connection.execute(
-                `
-                UPDATE DAFTAR_AGEN
-                SET NOMOR_HP = :phone,
-                    ALAMAT = :address
-                WHERE NOMOR_AGEN = :agentId
-                `,
-                {
-                    phone: normalizedPhone,
-                    address: normalizedAddress,
+            if (req.file || removePhoto) {
+                photoChange = await applyProfilePhotoChange({
                     agentId,
-                }
-            );
-            const agencyResult = normalizedBirthDate
-                ? await connection.execute(
-                      `
-                      UPDATE TM_AGENCY2
-                      SET A_EMAIL = :email,
-                          D_LAHIR = TO_DATE(:birthDate, 'YYYY-MM-DD')
-                      WHERE I_AGEN = :agentId
-                        AND D_LAHIR IS NULL
-                      `,
-                      {
-                          email: normalizedEmail,
-                          birthDate: normalizedBirthDate,
-                          agentId,
-                      }
-                  )
-                : await connection.execute(
-                      `
-                      UPDATE TM_AGENCY2
-                      SET A_EMAIL = :email
-                      WHERE I_AGEN = :agentId
-                      `,
-                      { email: normalizedEmail, agentId }
-                  );
-
-            if (
-                agentResult.rowsAffected !== 1 ||
-                agencyResult.rowsAffected !== 1
-            ) {
-                await connection.rollback();
-                return res.status(404).json({
-                    success: false,
-                    message: 'Data profil agen tidak ditemukan',
+                    photoFile: req.file,
+                    photoType,
+                    removePhoto,
                 });
             }
 
-            await connection.commit();
+            const agentFields = [];
+            const agentBinds = { agentId };
+            if (normalizedPhone != null) {
+                agentFields.push('NOMOR_HP = :phone');
+                agentBinds.phone = normalizedPhone;
+            }
+            if (normalizedAddress != null) {
+                agentFields.push('ALAMAT = :address');
+                agentBinds.address = normalizedAddress;
+            }
+            if (agentFields.length) {
+                const agentResult = await connection.execute(
+                    `
+                    UPDATE DAFTAR_AGEN
+                    SET ${agentFields.join(', ')}
+                    WHERE NOMOR_AGEN = :agentId
+                    `,
+                    agentBinds
+                );
+                if (agentResult.rowsAffected !== 1) {
+                    throw new Error('Data profil agen tidak ditemukan');
+                }
+            }
 
-            Object.assign(req.authUser, {
-                NOMOR_HP: normalizedPhone,
-                I_TELEPON_HP: normalizedPhone,
-                A_EMAIL: normalizedEmail,
-                EMAIL: normalizedEmail,
-                ALAMAT: normalizedAddress,
-            });
+            const agencyFields = [];
+            const agencyBinds = { agentId };
+            if (normalizedEmail != null) {
+                agencyFields.push('A_EMAIL = :email');
+                agencyBinds.email = normalizedEmail;
+            }
+            if (normalizedBirthDate != null) {
+                agencyFields.push(
+                    "D_LAHIR = TO_DATE(:birthDate, 'YYYY-MM-DD')"
+                );
+                agencyBinds.birthDate = normalizedBirthDate;
+            }
+            if (agencyFields.length) {
+                const agencyResult = await connection.execute(
+                    `
+                    UPDATE TM_AGENCY2
+                    SET ${agencyFields.join(', ')}
+                    WHERE I_AGEN = :agentId
+                    ${normalizedBirthDate
+                        ? 'AND D_LAHIR IS NULL'
+                        : ''}
+                    `,
+                    agencyBinds
+                );
+                if (agencyResult.rowsAffected !== 1) {
+                    throw new Error(
+                        normalizedBirthDate
+                            ? 'Tanggal lahir yang sudah diisi tidak dapat diubah'
+                            : 'Data profil agen tidak ditemukan'
+                    );
+                }
+            }
+
+            await connection.commit();
+            databaseCommitted = true;
+
+            if (normalizedPhone != null) {
+                Object.assign(req.authUser, {
+                    NOMOR_HP: normalizedPhone,
+                    I_TELEPON_HP: normalizedPhone,
+                });
+            }
+            if (normalizedEmail != null) {
+                Object.assign(req.authUser, {
+                    A_EMAIL: normalizedEmail,
+                    EMAIL: normalizedEmail,
+                });
+            }
+            if (normalizedAddress != null) {
+                req.authUser.ALAMAT = normalizedAddress;
+            }
             if (normalizedBirthDate) {
                 req.authUser.TANGGAL_LAHIR_ISO = normalizedBirthDate;
                 req.authUser.TANGGAL_LAHIR = parsedBirthDate.toLocaleDateString(
@@ -732,13 +975,31 @@ app.patch(
             });
         } catch (error) {
             console.error('Update Agent Profile Error:', error);
-            if (connection) {
+            if (connection && !databaseCommitted) {
                 await connection.rollback().catch(console.error);
             }
+            if (photoChange && !databaseCommitted) {
+                await rollbackProfilePhotoChange(photoChange).catch(
+                    rollbackError => {
+                        console.error(
+                            'Rollback Agent Profile Photo Error:',
+                            rollbackError
+                        );
+                    }
+                );
+            }
 
-            return res.status(500).json({
+            const statusCode = error.message ===
+                'Tanggal lahir yang sudah diisi tidak dapat diubah'
+                ? 409
+                : error.message === 'Data profil agen tidak ditemukan'
+                    ? 404
+                    : 500;
+            return res.status(statusCode).json({
                 success: false,
-                message: 'Gagal memperbarui profil agen',
+                message: statusCode === 500
+                    ? 'Gagal memperbarui profil agen'
+                    : error.message,
             });
         } finally {
             if (connection) {
