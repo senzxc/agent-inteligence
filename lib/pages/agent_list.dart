@@ -1607,6 +1607,12 @@ class _AgentListPageState extends State<AgentListPage>
 
   Future<void> _showAgentDetails(Map<String, dynamic> agent) {
     final name = (agent['NAMA_AGEN'] ?? '-').toString();
+    final agentId = (agent['NOMOR_AGEN'] ?? agent['I_AGEN'] ?? '')
+        .toString()
+        .trim();
+    final photoFuture = agentId.isEmpty
+        ? Future<Uint8List?>.value()
+        : ApiService.getAgentProfilePhoto(agentId);
     final agentNumber = (agent['NOMOR_AGEN'] ?? '-').toString();
     final namaKantor = (agent['NAMA_KANTOR'] ?? '').toString().trim();
     final kodeKantor = (agent['KODE_KANTOR'] ?? '').toString().trim();
@@ -1660,25 +1666,47 @@ class _AgentListPageState extends State<AgentListPage>
                   ),
                   child: Row(
                     children: [
-                      Container(
-                        width: 54,
-                        height: 54,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.16),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.28),
-                          ),
-                        ),
-                        child: Text(
-                          _agentInitials(name),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
+                      FutureBuilder<Uint8List?>(
+                        future: photoFuture,
+                        builder: (context, snapshot) {
+                          final photo = snapshot.data;
+                          return Container(
+                            width: 54,
+                            height: 54,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.16),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.28),
+                              ),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: photo == null
+                                ? Text(
+                                    _agentInitials(name),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  )
+                                : Image.memory(
+                                    photo,
+                                    width: 54,
+                                    height: 54,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, _, _) => Text(
+                                      _agentInitials(name),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                          );
+                        },
                       ),
                       const SizedBox(width: 14),
                       Expanded(
