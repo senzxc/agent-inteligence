@@ -124,43 +124,47 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> updateMyAgentProfile({
-    required String phone,
-    required String email,
-    required String address,
+    String? phone,
+    String? email,
+    String? address,
     String? birthDate,
-  }) {
-    return _trackingRequest(
-      'PATCH',
-      '/api/auth/profile',
-      body: {
-        'phone': phone,
-        'email': email,
-        'address': address,
-        ...?birthDate == null ? null : {'birthDate': birthDate},
-      },
-    );
-  }
-
-  static Future<void> uploadMyProfilePhoto({
-    required Uint8List bytes,
-    required String filename,
+    Uint8List? photoBytes,
+    String? photoFilename,
+    bool removePhoto = false,
   }) async {
     if (_token == null) {
       throw Exception('Token belum tersedia. Silakan login ulang.');
     }
+    if ((photoBytes == null) != (photoFilename == null) ||
+        (photoBytes != null && removePhoto)) {
+      throw Exception('Perubahan foto profil tidak valid.');
+    }
 
     final request = http.MultipartRequest(
-      'POST',
-      Uri.parse('$baseUrl/api/auth/profile/photo'),
+      'PATCH',
+      Uri.parse('$baseUrl/api/auth/profile'),
     );
     final authorization = _authHeaders['Authorization'];
     if (authorization == null) {
-      throw Exception('Token login tidak tersedia untuk unggah foto.');
+      throw Exception('Token login tidak tersedia untuk menyimpan profil.');
     }
     request.headers['Authorization'] = authorization;
-    request.files.add(
-      http.MultipartFile.fromBytes('photo', bytes, filename: filename),
-    );
+    request.fields['profile'] = jsonEncode({
+      'phone': phone,
+      'email': email,
+      'address': address,
+      'birthDate': birthDate,
+      'removePhoto': removePhoto,
+    });
+    if (photoBytes != null && photoFilename != null) {
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'photo',
+          photoBytes,
+          filename: photoFilename,
+        ),
+      );
+    }
 
     final response = await http.Response.fromStream(await request.send());
     final Object? decoded;
@@ -168,21 +172,22 @@ class ApiService {
       decoded = jsonDecode(response.body);
     } on FormatException {
       throw Exception(
-        'Server tidak mengembalikan JSON untuk unggahan foto '
+        'Server tidak mengembalikan JSON untuk penyimpanan profil '
         '(HTTP ${response.statusCode}).',
       );
     }
     if (decoded is! Map<String, dynamic>) {
-      throw Exception('Format respons unggahan foto tidak valid.');
+      throw Exception('Format respons penyimpanan profil tidak valid.');
     }
     if (response.statusCode < 200 ||
         response.statusCode >= 300 ||
         decoded['success'] != true) {
       throw Exception(
         decoded['message']?.toString() ??
-            'Foto profil gagal diunggah (HTTP ${response.statusCode}).',
+            'Profil gagal disimpan (HTTP ${response.statusCode}).',
       );
     }
+    return {'statusCode': response.statusCode, 'data': decoded};
   }
 
   static Future<Uint8List?> getMyProfilePhoto() async {
