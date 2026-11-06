@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
@@ -47,6 +48,8 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   bool _isRefreshingTasks = false;
   bool _isSelectionMode = false;
   bool _isBulkDeleting = false;
+  Uint8List? _agentPhotoBytes;
+  String? _loadedPhotoAgentId;
   String? _errorMessage;
   String? _refreshError;
   String _selectedTaskStatus = '';
@@ -76,6 +79,11 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
 
   String get _agentNumber =>
       _firstValue(['NOMOR_AGEN', 'STAMBUK', 'I_AGEN', 'nomorAgen', 'stambuk']);
+
+  String get _agentId => _firstValue(
+    ['I_AGEN', 'NOMOR_AGEN', 'STAMBUK', 'nomorAgen', 'stambuk'],
+    fallback: '',
+  );
 
   String get _agentPhone =>
       _firstValue(['NOMOR_HP', 'I_TELEPON_HP', 'NO_HP', 'nomorHp']);
@@ -169,11 +177,26 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   @override
   void initState() {
     super.initState();
+    _loadAgentProfilePhoto();
     _loadTasks();
     _taskRefreshTimer = Timer.periodic(
       const Duration(minutes: 1),
       (_) => _loadTasks(showLoading: false),
     );
+  }
+
+  Future<void> _loadAgentProfilePhoto() async {
+    final agentId = _agentId.trim();
+    if (agentId.isEmpty || agentId == '-') return;
+    if (_loadedPhotoAgentId == agentId) return;
+    _loadedPhotoAgentId = agentId;
+
+    try {
+      final photo = await ApiService.getAgentProfilePhoto(agentId);
+      if (mounted) setState(() => _agentPhotoBytes = photo);
+    } catch (error) {
+      debugPrint('Gagal memuat foto profil agen untuk halaman tugas: $error');
+    }
   }
 
   @override
@@ -2370,24 +2393,42 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.white.withValues(alpha: 0.24)),
             ),
-            child: const Icon(
-              Icons.person_outline_rounded,
-              color: Colors.white,
-              size: 29,
-            ),
+            clipBehavior: Clip.antiAlias,
+            child: _agentPhotoBytes == null
+                ? const Icon(
+                    Icons.person_outline_rounded,
+                    color: Colors.white,
+                    size: 29,
+                  )
+                : Image.memory(
+                    _agentPhotoBytes!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const Icon(
+                      Icons.person_outline_rounded,
+                      color: Colors.white,
+                      size: 29,
+                    ),
+                  ),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _agentName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _agentName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 5),
                 Text(
@@ -2661,7 +2702,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                 ? null
                 : _toggleSelectionMode,
             icon: Icon(
-              _isSelectionMode ? Icons.close_rounded : Icons.checklist_rounded,
+              _isSelectionMode ? Icons.close_rounded : Icons.check_box_outlined,
               color: _isSelectionMode ? _primary : _textSecondary,
             ),
           ),
