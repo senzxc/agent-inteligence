@@ -11,6 +11,7 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 import 'pages/agent_home.dart';
 import 'pages/agent_list.dart';
+import 'pages/agent_profile_edit.dart';
 import 'pages/agent_monitoring.dart';
 import 'pages/agent_team_home.dart';
 import 'pages/kantor_list.dart';
@@ -19,6 +20,7 @@ import 'services/gps_tracking_service.dart';
 import 'utils/agency_role.dart';
 import 'utils/dashboard_route_observer.dart';
 import 'utils/kantor_type.dart';
+import 'widgets/agent_profile_avatar.dart';
 
 // import 'package:lottie/lottie.dart';
 
@@ -871,6 +873,9 @@ class _HomePageState extends State<HomePage> with RouteAware {
   bool _isAgentTrackingPressed = false;
   bool _isAgentMonitoringHovered = false;
   bool _isAgentMonitoringPressed = false;
+  Map<String, dynamic>? _dashboardUser;
+  Uint8List? _profilePhotoBytes;
+  String? _loadedPhotoAgentId;
 
   @override
   void didChangeDependencies() {
@@ -884,10 +889,15 @@ class _HomePageState extends State<HomePage> with RouteAware {
       dashboardRouteObserver.subscribe(this, route);
     }
 
+    final arguments = ModalRoute.of(context)?.settings.arguments;
+    if (_dashboardUser == null && arguments is Map) {
+      _dashboardUser = Map<String, dynamic>.from(arguments);
+      _loadProfilePhoto();
+    }
+
     if (_hasLoadedKantor) return;
     _hasLoadedKantor = true;
 
-    final arguments = ModalRoute.of(context)?.settings.arguments;
     final agencyRole = arguments is Map
         ? (arguments['C_AGENCY_JABATAN'] ?? '').toString().trim().toUpperCase()
         : '';
@@ -932,6 +942,39 @@ class _HomePageState extends State<HomePage> with RouteAware {
     if (_canLoadDashboardStats) {
       _refreshDashboard();
     }
+    _loadProfilePhoto(force: true);
+  }
+
+  Future<void> _loadProfilePhoto({bool force = false}) async {
+    final agentId = (_dashboardUser?['I_AGEN'] ?? '').toString().trim();
+    if (agentId.isEmpty || agentId == '-') return;
+    if (!force && _loadedPhotoAgentId == agentId) return;
+    _loadedPhotoAgentId = agentId;
+
+    try {
+      final photo = await ApiService.getMyProfilePhoto();
+      if (mounted) setState(() => _profilePhotoBytes = photo);
+    } catch (error) {
+      debugPrint('Gagal memuat foto profil agen: $error');
+    }
+  }
+
+  Future<void> _editProfile() async {
+    final user = _dashboardUser;
+    if (user == null) return;
+
+    final updatedProfile = await material.Navigator.of(context)
+        .push<Map<String, dynamic>>(
+          material.MaterialPageRoute<Map<String, dynamic>>(
+            builder: (_) =>
+                AgentProfileEditPage(agent: user, loadLatestProfile: true),
+          ),
+        );
+    if (!mounted) return;
+    if (updatedProfile != null) {
+      setState(() => user.addAll(updatedProfile));
+    }
+    await _loadProfilePhoto(force: true);
   }
 
   @override
@@ -1221,8 +1264,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isCompactLayout = MediaQuery.sizeOf(context).width < 600;
-    final arguments = ModalRoute.of(context)?.settings.arguments;
-    final user = arguments is Map ? arguments : const <String, dynamic>{};
+    final user = _dashboardUser ?? const <String, dynamic>{};
     final nama = (user['NAMA_AGEN'] ?? user['NAMA'] ?? user['nama'])
         ?.toString()
         .trim();
@@ -1388,14 +1430,11 @@ class _HomePageState extends State<HomePage> with RouteAware {
                   children: [
                     Row(
                       children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.16),
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                          child: const Icon(
+                        AgentProfileAvatar(
+                          photoBytes: _profilePhotoBytes,
+                          size: 48,
+                          borderRadius: 15,
+                          placeholder: const material.Icon(
                             LucideIcons.user,
                             color: Colors.white,
                             size: 28,
@@ -1426,6 +1465,33 @@ class _HomePageState extends State<HomePage> with RouteAware {
                             ],
                           ),
                         ),
+                        if ((user['I_AGEN'] ?? '').toString().trim().isNotEmpty)
+                          material.Material(
+                            color: material.Colors.white.withValues(
+                              alpha: 0.16,
+                            ),
+                            shape: const material.CircleBorder(
+                              side: material.BorderSide(
+                                color: material.Color(0x55FFFFFF),
+                              ),
+                            ),
+                            child: material.IconButton(
+                              tooltip: 'Edit profil',
+                              visualDensity: material.VisualDensity.compact,
+                              constraints:
+                                  const material.BoxConstraints.tightFor(
+                                    width: 38,
+                                    height: 38,
+                                  ),
+                              padding: material.EdgeInsets.zero,
+                              onPressed: _editProfile,
+                              icon: const material.Icon(
+                                material.Icons.edit_outlined,
+                                color: material.Colors.white,
+                                size: 19,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
 
