@@ -39,7 +39,7 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
   String? _photoError;
   String? _photoLoadError;
   bool _isLoadingPhoto = true;
-  bool _isUploadingPhoto = false;
+  bool _removeProfilePhoto = false;
   bool _isSaving = false;
 
   String _firstValue(List<String> keys) {
@@ -94,7 +94,7 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
   }
 
   Future<void> _pickProfilePhoto() async {
-    if (_isUploadingPhoto) return;
+    if (_isSaving) return;
     try {
       final image = await _imagePicker.pickImage(
         source: ImageSource.gallery,
@@ -106,9 +106,10 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
 
       final bytes = await image.readAsBytes();
       if (!mounted) return;
-      if (bytes.length > 5 * 1024 * 1024) {
+      final validationError = _validateProfilePhoto(bytes);
+      if (validationError != null) {
         setState(() {
-          _photoError = 'Ukuran foto maksimal 5 MB.';
+          _photoError = validationError;
           _selectedPhotoBytes = null;
           _selectedPhotoName = null;
         });
@@ -119,6 +120,7 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
         _photoError = null;
         _selectedPhotoBytes = bytes;
         _selectedPhotoName = image.name;
+        _removeProfilePhoto = false;
       });
     } catch (error) {
       if (!mounted) return;
@@ -130,38 +132,35 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
     }
   }
 
-  Future<void> _uploadProfilePhoto() async {
-    final bytes = _selectedPhotoBytes;
-    final filename = _selectedPhotoName;
-    if (bytes == null || filename == null || _isUploadingPhoto) return;
-
-    setState(() {
-      _isUploadingPhoto = true;
-      _photoError = null;
-    });
-    try {
-      await ApiService.uploadMyProfilePhoto(bytes: bytes, filename: filename);
-      if (!mounted) return;
-      setState(() {
-        _profilePhotoBytes = bytes;
-        _selectedPhotoBytes = null;
-        _selectedPhotoName = null;
-        _photoError = null;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Foto profil berhasil diperbarui.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _photoError = error.toString().replaceFirst('Exception: ', '');
-      });
-    } finally {
-      if (mounted) setState(() => _isUploadingPhoto = false);
+  String? _validateProfilePhoto(Uint8List bytes) {
+    if (bytes.isEmpty) return 'File foto kosong.';
+    if (bytes.length > 5 * 1024 * 1024) {
+      return 'Ukuran foto maksimal 5 MB.';
     }
+
+    final isJpeg =
+        bytes.length >= 3 &&
+        bytes[0] == 0xff &&
+        bytes[1] == 0xd8 &&
+        bytes[2] == 0xff;
+    final isPng =
+        bytes.length >= 8 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4e &&
+        bytes[3] == 0x47 &&
+        bytes[4] == 0x0d &&
+        bytes[5] == 0x0a &&
+        bytes[6] == 0x1a &&
+        bytes[7] == 0x0a;
+    final isWebP =
+        bytes.length >= 12 &&
+        String.fromCharCodes(bytes.sublist(0, 4)) == 'RIFF' &&
+        String.fromCharCodes(bytes.sublist(8, 12)) == 'WEBP';
+    if (!isJpeg && !isPng && !isWebP) {
+      return 'Format foto harus JPEG, PNG, atau WebP.';
+    }
+    return null;
   }
 
   Future<void> _loadLatestProfile() async {
@@ -248,7 +247,7 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
 
   String? _validatePhone(String? value) {
     final phone = value?.trim() ?? '';
-    if (phone.isEmpty) return 'Nomor telepon wajib diisi.';
+    if (phone.isEmpty) return null;
     if (!RegExp(r'^[0-9+().\-\s]{8,20}$').hasMatch(phone)) {
       return 'Masukkan nomor telepon yang valid.';
     }
@@ -257,7 +256,7 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
 
   String? _validateEmail(String? value) {
     final email = value?.trim() ?? '';
-    if (email.isEmpty) return 'Email wajib diisi.';
+    if (email.isEmpty) return null;
     if (email.length > 254 ||
         !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
       return 'Masukkan alamat email yang valid.';
@@ -267,7 +266,7 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
 
   String? _validateAddress(String? value) {
     final address = value?.trim() ?? '';
-    if (address.isEmpty) return 'Alamat wajib diisi.';
+    if (address.isEmpty) return null;
     if (address.length > 500) return 'Alamat maksimal 500 karakter.';
     return null;
   }
@@ -283,14 +282,17 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
     setState(() => _isSaving = true);
     try {
       final response = await ApiService.updateMyAgentProfile(
-        phone: _phoneController.text.trim(),
-        email: _emailController.text.trim(),
-        address: _addressController.text.trim(),
+        phone: _optionalFormValue(_phoneController.text),
+        email: _optionalFormValue(_emailController.text),
+        address: _optionalFormValue(_addressController.text),
         birthDate: _birthDate == null || _birthDateLocked
             ? null
             : '${_birthDate!.year.toString().padLeft(4, '0')}-'
                   '${_birthDate!.month.toString().padLeft(2, '0')}-'
                   '${_birthDate!.day.toString().padLeft(2, '0')}',
+        photoBytes: _selectedPhotoBytes,
+        photoFilename: _selectedPhotoName,
+        removePhoto: _removeProfilePhoto,
       );
       final data = response['data'] as Map<String, dynamic>;
       final user = data['user'];
@@ -314,6 +316,11 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  String? _optionalFormValue(String value) {
+    final normalized = value.trim();
+    return normalized.isEmpty ? null : normalized;
   }
 
   Future<void> _selectBirthDate() async {
@@ -580,7 +587,9 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
                         radius: 52,
                         backgroundColor: const Color(0xFFEAF3FF),
                         child:
-                            (_selectedPhotoBytes ?? _profilePhotoBytes) == null
+                            _removeProfilePhoto ||
+                                (_selectedPhotoBytes ?? _profilePhotoBytes) ==
+                                    null
                             ? const Icon(
                                 Icons.person_outline_rounded,
                                 color: _primary,
@@ -644,7 +653,7 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
                       if (_photoError != null) ...[
                         const SizedBox(height: 10),
                         Text(
-                          'Foto gagal diunggah: $_photoError',
+                          'Foto tidak dapat digunakan: $_photoError',
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             color: Color(0xFFB91C1C),
@@ -659,9 +668,7 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
                         runSpacing: 10,
                         children: [
                           OutlinedButton.icon(
-                            onPressed: _isUploadingPhoto
-                                ? null
-                                : _pickProfilePhoto,
+                            onPressed: _isSaving ? null : _pickProfilePhoto,
                             icon: const Icon(Icons.photo_library_outlined),
                             label: Text(
                               _selectedPhotoBytes == null
@@ -677,26 +684,45 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
                             ),
                           ),
                           if (_selectedPhotoBytes != null)
-                            FilledButton.icon(
-                              onPressed: _isUploadingPhoto
+                            TextButton.icon(
+                              onPressed: _isSaving
                                   ? null
-                                  : _uploadProfilePhoto,
-                              icon: _isUploadingPhoto
-                                  ? const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Icon(Icons.cloud_upload_outlined),
-                              label: Text(
-                                _isUploadingPhoto ? 'Mengunggah...' : 'Unggah',
-                              ),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: _primary,
-                                foregroundColor: Colors.white,
+                                  : () => setState(() {
+                                      _selectedPhotoBytes = null;
+                                      _selectedPhotoName = null;
+                                      _photoError = null;
+                                    }),
+                              icon: const Icon(Icons.undo_rounded),
+                              label: const Text('Batalkan pilihan'),
+                            )
+                          else if (_removeProfilePhoto)
+                            TextButton.icon(
+                              onPressed: _isSaving
+                                  ? null
+                                  : () => setState(
+                                      () => _removeProfilePhoto = false,
+                                    ),
+                              icon: const Icon(Icons.undo_rounded),
+                              label: const Text('Batalkan hapus'),
+                            )
+                          else if (_profilePhotoBytes != null)
+                            OutlinedButton.icon(
+                              onPressed: _isSaving
+                                  ? null
+                                  : () => setState(() {
+                                      _removeProfilePhoto = true;
+                                      _photoError = null;
+                                    }),
+                              icon: const Icon(Icons.delete_outline_rounded),
+                              label: const Text('Hapus foto'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFFB91C1C),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                side: const BorderSide(
+                                  color: Color(0xFFBBD5F5),
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(13),
                                 ),
@@ -735,14 +761,14 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
                       ),
                       const SizedBox(height: 5),
                       const Text(
-                        'Pastikan informasi kontak Anda selalu aktif.',
+                        'Isi data yang ingin diperbarui.',
                         style: TextStyle(
                           color: _textSecondary,
                           fontSize: 12,
                           height: 1.4,
                         ),
                       ),
-                      const SizedBox(height: 22),
+                      const SizedBox(height: 25),
                       _buildField(
                         label: 'Nomor telepon',
                         hint: 'Contoh: 081234567890',
@@ -777,7 +803,7 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
                         child: InputDecorator(
                           decoration:
                               _inputDecoration(
-                                label: 'Tanggal lahir',
+                                label: 'Tanggal lahir (opsional)',
                                 hint: 'Pilih tanggal lahir',
                                 icon: Icons.cake_outlined,
                               ).copyWith(

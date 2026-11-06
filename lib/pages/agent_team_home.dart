@@ -846,13 +846,6 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: const Color(0xFFDCE8F5)),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x0D172033),
-                  blurRadius: 12,
-                  offset: Offset(0, 4),
-                ),
-              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1919,10 +1912,6 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
       appBar: AppBar(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
-        title: const Text(
-          'Dashboard Kantor',
-          style: TextStyle(color: _ink, fontWeight: FontWeight.w800),
-        ),
         actions: [
           IconButton(
             tooltip: 'Keluar',
@@ -2358,8 +2347,11 @@ class _AgentCard extends StatelessWidget {
       child: Card(
         margin: const EdgeInsets.only(bottom: 10),
         color: Colors.white,
-        elevation: 1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFFDCE8F5)),
+        ),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
@@ -2550,6 +2542,11 @@ class _StatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       color: Colors.white,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFFDCE8F5)),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(

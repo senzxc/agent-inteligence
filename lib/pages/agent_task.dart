@@ -138,6 +138,9 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
     return _taskStatus(task) == 'Selesai';
   }).length;
 
+  Set<String> get _selectableTaskIds =>
+      _tasks.map(_taskId).where((taskId) => taskId.isNotEmpty).toSet();
+
   List<Map<String, dynamic>> get _visibleTasks {
     final query = _taskSearchController.text.trim().toLowerCase();
     final tasks = _tasks.where((task) {
@@ -1540,6 +1543,16 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
     });
   }
 
+  void _toggleAllTaskSelection(bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedTaskIds.addAll(_selectableTaskIds);
+      } else {
+        _selectedTaskIds.clear();
+      }
+    });
+  }
+
   Future<bool> _confirmBulkDelete(int count) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -2312,6 +2325,10 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                 _buildSummary(),
                 const SizedBox(height: 24),
                 _buildTaskHeader(),
+                if (_isSelectionMode && _selectableTaskIds.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _buildSelectAllTasks(),
+                ],
                 if (_showTaskSearch) ...[
                   const SizedBox(height: 4),
                   TextField(
@@ -2660,14 +2677,14 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
             ),
           ),
         ),
-        Text(
-          _isSelectionMode
-              ? '${_selectedTaskIds.length} dipilih'
-              : _visibleTasks.length == _totalTasks
-              ? '$_totalTasks tugas'
-              : '${_visibleTasks.length} dari $_totalTasks tugas',
-          style: const TextStyle(color: _textSecondary, fontSize: 12),
-        ),
+        // Text(
+        //   _isSelectionMode
+        //       ? '${_selectedTaskIds.length} dipilih'
+        //       : _visibleTasks.length == _totalTasks
+        //       ? '$_totalTasks tugas'
+        //       : '${_visibleTasks.length} dari $_totalTasks tugas',
+        //   style: const TextStyle(color: _textSecondary, fontSize: 12),
+        // ),
         const SizedBox(width: 4),
         IconButton(
           tooltip: _showTaskSearch ? 'Tutup pencarian' : 'Cari tugas',
@@ -2707,6 +2724,55 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _buildSelectAllTasks() {
+    final taskIds = _selectableTaskIds;
+    final selectedCount = taskIds.where(_selectedTaskIds.contains).length;
+    final bool? value = selectedCount == 0
+        ? false
+        : selectedCount == taskIds.length
+        ? true
+        : null;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFDCE6F2)),
+      ),
+      child: CheckboxListTile(
+        value: value,
+        tristate: true,
+        onChanged: _isBulkDeleting
+            ? null
+            : (selected) => _toggleAllTaskSelection(selected == true),
+        activeColor: _primary,
+        controlAffinity: ListTileControlAffinity.leading,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+        dense: true,
+        title: const Text(
+          'Pilih semua tugas',
+          style: TextStyle(
+            color: _textPrimary,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        subtitle: const Text(
+          'Termasuk tugas yang tidak tampil karena pencarian atau filter.',
+          style: TextStyle(color: _textSecondary, fontSize: 11),
+        ),
+        secondary: Text(
+          '$selectedCount/${taskIds.length}',
+          style: const TextStyle(
+            color: _textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 
