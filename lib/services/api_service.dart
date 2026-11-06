@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -120,6 +121,162 @@ class ApiService {
     }
 
     return Map<String, dynamic>.from(user);
+  }
+
+  static Future<Map<String, dynamic>> updateMyAgentProfile({
+    required String phone,
+    required String email,
+    required String address,
+    String? birthDate,
+  }) {
+    return _trackingRequest(
+      'PATCH',
+      '/api/auth/profile',
+      body: {
+        'phone': phone,
+        'email': email,
+        'address': address,
+        ...?birthDate == null ? null : {'birthDate': birthDate},
+      },
+    );
+  }
+
+  static Future<void> uploadMyProfilePhoto({
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    if (_token == null) {
+      throw Exception('Token belum tersedia. Silakan login ulang.');
+    }
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/api/auth/profile/photo'),
+    );
+    final authorization = _authHeaders['Authorization'];
+    if (authorization == null) {
+      throw Exception('Token login tidak tersedia untuk unggah foto.');
+    }
+    request.headers['Authorization'] = authorization;
+    request.files.add(
+      http.MultipartFile.fromBytes('photo', bytes, filename: filename),
+    );
+
+    final response = await http.Response.fromStream(await request.send());
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } on FormatException {
+      throw Exception(
+        'Server tidak mengembalikan JSON untuk unggahan foto '
+        '(HTTP ${response.statusCode}).',
+      );
+    }
+    if (decoded is! Map<String, dynamic>) {
+      throw Exception('Format respons unggahan foto tidak valid.');
+    }
+    if (response.statusCode < 200 ||
+        response.statusCode >= 300 ||
+        decoded['success'] != true) {
+      throw Exception(
+        decoded['message']?.toString() ??
+            'Foto profil gagal diunggah (HTTP ${response.statusCode}).',
+      );
+    }
+  }
+
+  static Future<Uint8List?> getMyProfilePhoto() async {
+    if (_token == null) {
+      throw Exception('Token belum tersedia. Silakan login ulang.');
+    }
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/auth/profile/photo'),
+      headers: _authHeaders,
+    );
+    if (response.statusCode == 404) {
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map &&
+            decoded['message'] == 'Foto profil belum diunggah') {
+          return null;
+        }
+        throw Exception(
+          decoded is Map
+              ? decoded['message']?.toString() ??
+                    'Endpoint foto profil tidak tersedia di server.'
+              : 'Endpoint foto profil tidak tersedia di server.',
+        );
+      } on FormatException {
+        throw Exception(
+          'Endpoint foto profil tidak tersedia. Perbarui backend server.',
+        );
+      }
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      Object? decoded;
+      try {
+        decoded = jsonDecode(response.body);
+      } on FormatException {
+        throw Exception(
+          'Server gagal mengambil foto profil (HTTP ${response.statusCode}).',
+        );
+      }
+      final message = decoded is Map ? decoded['message']?.toString() : null;
+      throw Exception(
+        message ?? 'Foto profil gagal dimuat (HTTP ${response.statusCode}).',
+      );
+    }
+    return response.bodyBytes;
+  }
+
+  static Future<Uint8List?> getAgentProfilePhoto(String agentId) async {
+    if (_token == null) {
+      throw Exception('Token belum tersedia. Silakan login ulang.');
+    }
+
+    final normalizedAgentId = agentId.trim();
+    if (normalizedAgentId.isEmpty) {
+      throw ArgumentError.value(agentId, 'agentId', 'ID agen wajib diisi.');
+    }
+
+    final response = await http.get(
+      Uri.parse(
+        '$baseUrl/api/agents/${Uri.encodeComponent(normalizedAgentId)}/profile/photo',
+      ),
+      headers: _authHeaders,
+    );
+    if (response.statusCode == 404) {
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map &&
+            decoded['message'] == 'Foto profil belum diunggah') {
+          return null;
+        }
+        final message = decoded is Map ? decoded['message']?.toString() : null;
+        throw Exception(message ?? 'Foto profil agen tidak ditemukan.');
+      } on FormatException {
+        throw Exception(
+          'Server tidak mengembalikan respons foto profil agen yang valid.',
+        );
+      }
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      Object? decoded;
+      try {
+        decoded = jsonDecode(response.body);
+      } on FormatException {
+        throw Exception(
+          'Server gagal mengambil foto profil agen (HTTP ${response.statusCode}).',
+        );
+      }
+      final message = decoded is Map ? decoded['message']?.toString() : null;
+      throw Exception(
+        message ??
+            'Foto profil agen gagal dimuat (HTTP ${response.statusCode}).',
+      );
+    }
+    return response.bodyBytes;
   }
 
   static Future<Map<String, dynamic>> getKantor() async {
