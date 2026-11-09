@@ -1,0 +1,4 @@
+storePassword=GANTI_DENGAN_PASSWORD_KEYSTORE
+keyPassword=GANTI_DENGAN_PASSWORD_KEY
+keyAlias=upload
+storeFile=C:/PATH/KE/agent-tracker-upload-key.jks

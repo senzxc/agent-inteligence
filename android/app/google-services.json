@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "24593382404",
+    "project_id": "agent-tracker-app-c2aa4",
+    "storage_bucket": "agent-tracker-app-c2aa4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:24593382404:android:ccef04da49afeb517b4951",
+        "android_client_info": {
+          "package_name": "com.example.agent_inteligence"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAh7ICjj2WqUrDZe6IQycaVc43zFqMCoFY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart' as material;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:firebase_core/firebase_core.dart';
 
+import 'firebase_options.dart';
 import 'pages/agent_tracking.dart';
 
 import 'package:flutter_map/flutter_map.dart' as flutter_map;
@@ -17,6 +21,7 @@ import 'pages/agent_team_home.dart';
 import 'pages/kantor_list.dart';
 import 'services/api_service.dart';
 import 'services/gps_tracking_service.dart';
+import 'services/push_notification_service.dart';
 import 'utils/agency_role.dart';
 import 'utils/dashboard_route_observer.dart';
 import 'utils/kantor_type.dart';
@@ -25,10 +30,6 @@ import 'widgets/agent_profile_avatar.dart';
 // import 'package:lottie/lottie.dart';
 
 const List<Color> _brandGradientColors = [Color(0xFF0D47A1), Color(0xFF1565C0)];
-const List<Color> _agentMonitoringGradientColors = [
-  Color.fromARGB(255, 14, 139, 62),
-  Color(0xFF22C55E),
-];
 
 const LinearGradient _pageBackgroundGradient = LinearGradient(
   begin: Alignment.topCenter,
@@ -61,10 +62,17 @@ AbstractButtonStyle _brandButtonStyle() {
   );
 }
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  SystemChrome.setPreferredOrientations([
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    await PushNotificationService.initialize();
+  }
+
+  await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
@@ -869,10 +877,6 @@ class _HomePageState extends State<HomePage> with RouteAware {
   int? _offlineAgentCount;
   String? _dashboardStatsError;
   String? _kantorLoadError;
-  bool _isAgentTrackingHovered = false;
-  bool _isAgentTrackingPressed = false;
-  bool _isAgentMonitoringHovered = false;
-  bool _isAgentMonitoringPressed = false;
   Map<String, dynamic>? _dashboardUser;
   Uint8List? _profilePhotoBytes;
   String? _loadedPhotoAgentId;
@@ -1185,79 +1189,6 @@ class _HomePageState extends State<HomePage> with RouteAware {
       ..['VIEW_ALL_BRANCHES'] = viewAllBranches
       ..['SHOW_INDONESIA_MAP_BUTTON'] = showIndonesiaMapButton;
     Navigator.pushNamed(context, '/agent-list', arguments: arguments);
-  }
-
-  Widget _buildDashboardActionTile({
-    required String label,
-    required IconData icon,
-    required List<Color> gradientColors,
-    required bool hovered,
-    required bool pressed,
-    required ValueChanged<bool> onHoverChanged,
-    required ValueChanged<bool> onPressedChanged,
-    required VoidCallback onTap,
-  }) {
-    return MouseRegion(
-      onEnter: (_) => onHoverChanged(true),
-      onExit: (_) => onHoverChanged(false),
-      child: GestureDetector(
-        onTap: onTap,
-        onTapDown: (_) => onPressedChanged(true),
-        onTapUp: (_) => onPressedChanged(false),
-        onTapCancel: () => onPressedChanged(false),
-        child: AnimatedScale(
-          scale: pressed
-              ? 0.97
-              : hovered
-              ? 1.02
-              : 1,
-          duration: const Duration(milliseconds: 140),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: gradientColors,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(17),
-              boxShadow: [
-                BoxShadow(
-                  color: gradientColors.first.withValues(alpha: 0.22),
-                  blurRadius: hovered ? 16 : 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Icon(icon, color: Colors.white, size: 23),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      height: 1.15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                const Icon(
-                  LucideIcons.chevronRight,
-                  color: Colors.white,
-                  size: 17,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   @override
@@ -1607,22 +1538,6 @@ class _HomePageState extends State<HomePage> with RouteAware {
                         arguments: user,
                       ),
                     ),
-                    // _buildDashboardActionTile(
-                    //   label: 'Mulai Bertugas Agen',
-                    //   icon: LucideIcons.mapPin,
-                    //   gradientColors: _brandGradientColors,
-                    //   hovered: _isAgentTrackingHovered,
-                    //   pressed: _isAgentTrackingPressed,
-                    //   onHoverChanged: (value) {
-                    //     setState(() => _isAgentTrackingHovered = value);
-                    //   },
-                    //   onPressedChanged: (value) {
-                    //     setState(() => _isAgentTrackingPressed = value);
-                    //   },
-                    //   onTap: () {
-                    //     Navigator.pushNamed(context, '/agent-tracking');
-                    //   },
-                    // ),
                     _buildDashboardStatTile(
                       icon: LucideIcons.users,
                       label: 'Total Agen',
@@ -1639,27 +1554,6 @@ class _HomePageState extends State<HomePage> with RouteAware {
                         showIndonesiaMapButton: true,
                       ),
                     ),
-                    // if (appRole == 'HEAD_MARKETING' || appRole == 'HEAD_AGENT')
-                    //   _buildDashboardActionTile(
-                    //     label: 'Pantau Lokasi Agen',
-                    //     icon: LucideIcons.map,
-                    //     gradientColors: _agentMonitoringGradientColors,
-                    //     hovered: _isAgentMonitoringHovered,
-                    //     pressed: _isAgentMonitoringPressed,
-                    //     onHoverChanged: (value) {
-                    //       setState(() => _isAgentMonitoringHovered = value);
-                    //     },
-                    //     onPressedChanged: (value) {
-                    //       setState(() => _isAgentMonitoringPressed = value);
-                    //     },
-                    //     onTap: () {
-                    //       Navigator.pushNamed(
-                    //         context,
-                    //         '/agent-monitoring',
-                    //         arguments: user,
-                    //       );
-                    //     },
-                    //   ),
                     _buildDashboardStatTile(
                       icon: material.Icons.wifi_rounded,
                       label: 'Agen Online',

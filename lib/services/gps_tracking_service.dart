@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:location/location.dart' as location_plugin;
@@ -12,9 +11,6 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
   AgentGpsTrackingService._();
 
   static final AgentGpsTrackingService instance = AgentGpsTrackingService._();
-  static const MethodChannel _notificationPermissionChannel = MethodChannel(
-    'com.example.agent_inteligence/notifications',
-  );
 
   final location_plugin.Location _locationService = location_plugin.Location();
   final StreamController<Position> _positions =
@@ -27,7 +23,6 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
   final Set<Future<void>> _pendingLocationUpdates = {};
   Position? _latestPosition;
   String? _latestLocationWarning;
-  bool? _notificationsAllowed;
   bool? _backgroundLocationAllowed;
 
   bool _isTracking = false;
@@ -40,7 +35,6 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
   Stream<Position> get positions => _positions.stream;
   Stream<String?> get locationWarnings => _locationWarnings.stream;
   String? get latestLocationWarning => _latestLocationWarning;
-  bool? get notificationsAllowed => _notificationsAllowed;
   bool? get backgroundLocationAllowed => _backgroundLocationAllowed;
   bool get _isAndroid =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
@@ -86,7 +80,6 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
 
     try {
       await ensureGpsReady();
-      await _requestNotificationPermission();
 
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
@@ -124,33 +117,12 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _requestNotificationPermission() async {
-    if (!_isAndroid) return;
-
-    _notificationsAllowed = await _notificationPermissionChannel
-        .invokeMethod<bool>('requestNotificationPermission');
-
-    if (_notificationsAllowed == false) {
-      debugPrint(
-        'Izin notifikasi ditolak; Android dapat menyembunyikan notifikasi '
-        'foreground service dari panel notifikasi.',
-      );
-    }
-  }
-
   LocationSettings _trackingLocationSettings() {
     if (_isAndroid) {
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: 5,
         intervalDuration: const Duration(seconds: 10),
-        foregroundNotificationConfig: const ForegroundNotificationConfig(
-          notificationTitle: 'Pelacakan lokasi aktif',
-          notificationText: 'Lokasi dibagikan selama Anda bertugas.',
-          notificationChannelName: 'Pelacakan lokasi',
-          enableWakeLock: true,
-          setOngoing: true,
-        ),
       );
     }
 
