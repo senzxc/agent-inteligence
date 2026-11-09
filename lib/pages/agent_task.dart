@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../widgets/agent_profile_photo.dart';
 
 enum _TaskSortField { deadline, createdAt }
 
@@ -80,10 +81,13 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   String get _agentNumber =>
       _firstValue(['NOMOR_AGEN', 'STAMBUK', 'I_AGEN', 'nomorAgen', 'stambuk']);
 
-  String get _agentId => _firstValue(
-    ['I_AGEN', 'NOMOR_AGEN', 'STAMBUK', 'nomorAgen', 'stambuk'],
-    fallback: '',
-  );
+  String get _agentId => _firstValue([
+    'I_AGEN',
+    'NOMOR_AGEN',
+    'STAMBUK',
+    'nomorAgen',
+    'stambuk',
+  ], fallback: '');
 
   String get _agentPhone =>
       _firstValue(['NOMOR_HP', 'I_TELEPON_HP', 'NO_HP', 'nomorHp']);
@@ -2402,30 +2406,15 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.24)),
+          AgentProfilePhoto(
+            photoBytes: _agentPhotoBytes,
+            size: 52,
+            borderRadius: 14,
+            placeholder: const Icon(
+              Icons.person_outline_rounded,
+              color: Colors.white,
+              size: 29,
             ),
-            clipBehavior: Clip.antiAlias,
-            child: _agentPhotoBytes == null
-                ? const Icon(
-                    Icons.person_outline_rounded,
-                    color: Colors.white,
-                    size: 29,
-                  )
-                : Image.memory(
-                    _agentPhotoBytes!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const Icon(
-                      Icons.person_outline_rounded,
-                      color: Colors.white,
-                      size: 29,
-                    ),
-                  ),
           ),
           const SizedBox(width: 14),
           Expanded(

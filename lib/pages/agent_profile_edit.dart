@@ -803,7 +803,7 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
                         child: InputDecorator(
                           decoration:
                               _inputDecoration(
-                                label: 'Tanggal lahir (opsional)',
+                                label: 'Tanggal lahir',
                                 hint: 'Pilih tanggal lahir',
                                 icon: Icons.cake_outlined,
                               ).copyWith(

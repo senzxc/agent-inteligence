@@ -81,6 +81,28 @@ function getProfilePhotoMetadataPath(agentId) {
     return path.join(PROFILE_PHOTO_DIR, `${agentKey}.json`);
 }
 
+function getProfilePhotoFilePath(photoPath) {
+    if (photoPath == null) return null;
+    if (typeof photoPath !== 'string') {
+        throw new Error('Path foto profil tidak valid.');
+    }
+    if (!photoPath.trim()) return null;
+
+    const photoDirectory = path.resolve(PROFILE_PHOTO_DIR);
+    const resolvedPath = path.resolve(photoDirectory, photoPath.trim());
+    const relativePath = path.relative(photoDirectory, resolvedPath);
+    if (
+        !relativePath ||
+        relativePath === '..' ||
+        relativePath.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(relativePath)
+    ) {
+        throw new Error('Path foto profil tidak valid.');
+    }
+
+    return resolvedPath;
+}
+
 function getProfilePhotoType(buffer) {
     if (
         buffer.length >= 3 &&
@@ -133,127 +155,82 @@ async function readProfilePhotoMetadata(agentId) {
     }
 }
 
-async function applyProfilePhotoChange({
-    agentId,
-    photoFile,
-    photoType,
-    removePhoto,
-}) {
-    const metadataPath = getProfilePhotoMetadataPath(agentId);
-    const previousMetadata = await readProfilePhotoMetadata(agentId);
-    const previousPhotoPath = previousMetadata
-        ? path.join(PROFILE_PHOTO_DIR, previousMetadata.filename)
-        : null;
-    let previousPhotoBytes = null;
-    if (previousPhotoPath) {
+async function getExistingProfilePhoto(agentId, storedPhotoPath) {
+    const photoPaths = new Set();
+    const storedPath = getProfilePhotoFilePath(storedPhotoPath);
+    if (storedPath) photoPaths.add(storedPath);
+
+    let metadata;
+    try {
+        metadata = await readProfilePhotoMetadata(agentId);
+    } catch (error) {
+        if (!storedPath) throw error;
+        console.error('Read legacy profile photo metadata Error:', error);
+    }
+    if (metadata) {
+        photoPaths.add(getProfilePhotoFilePath(metadata.filename));
+    }
+
+    return {
+        photoPaths: [...photoPaths],
+        metadataPath: getProfilePhotoMetadataPath(agentId),
+    };
+}
+
+async function readProfilePhoto(agentId, storedPhotoPath) {
+    const existingPhoto = await getExistingProfilePhoto(
+        agentId,
+        storedPhotoPath
+    );
+
+    for (const photoPath of existingPhoto.photoPaths) {
         try {
-            previousPhotoBytes = await fs.readFile(previousPhotoPath);
+            const bytes = await fs.readFile(photoPath);
+            const photoType = getProfilePhotoType(bytes);
+            if (!photoType) {
+                throw new Error('Format foto profil di server tidak valid.');
+            }
+            return { bytes, mimeType: photoType.mimeType };
         } catch (error) {
             if (error.code !== 'ENOENT') throw error;
         }
     }
 
-    const change = {
-        metadataPath,
-        previousMetadata,
-        previousPhotoPath,
-        previousPhotoBytes,
-        newPhotoPath: null,
-        temporaryMetadataPath: null,
-        metadataChanged: false,
-        previousPhotoRemoved: false,
-    };
+    return null;
+}
 
-    try {
-        await fs.mkdir(PROFILE_PHOTO_DIR, { recursive: true });
-
-        if (photoFile) {
-            const filename = `${crypto.randomUUID()}${photoType.extension}`;
-            change.newPhotoPath = path.join(PROFILE_PHOTO_DIR, filename);
-            change.temporaryMetadataPath =
-                `${metadataPath}.${crypto.randomUUID()}.tmp`;
-
-            await fs.writeFile(change.newPhotoPath, photoFile.buffer, {
-                flag: 'wx',
-            });
-            await fs.writeFile(
-                change.temporaryMetadataPath,
-                JSON.stringify({
-                    filename,
-                    mimeType: photoType.mimeType,
-                    updatedAt: new Date().toISOString(),
-                }),
-                { flag: 'wx' }
-            );
-            await fs.rename(change.temporaryMetadataPath, metadataPath);
-            change.temporaryMetadataPath = null;
-            change.metadataChanged = true;
-        } else if (removePhoto) {
-            await fs.unlink(metadataPath).catch(error => {
-                if (error.code !== 'ENOENT') throw error;
-            });
-            change.metadataChanged = true;
-        }
-
-        if (
-            previousPhotoPath &&
-            (removePhoto || photoFile) &&
-            (!photoFile ||
-                path.basename(change.newPhotoPath) !==
-                    previousMetadata.filename)
-        ) {
-            await fs.unlink(previousPhotoPath).catch(error => {
-                if (error.code !== 'ENOENT') throw error;
-            });
-            change.previousPhotoRemoved = previousPhotoBytes !== null;
-        }
-
-        return change;
-    } catch (error) {
-        await rollbackProfilePhotoChange(change).catch(rollbackError => {
-            console.error('Rollback Agent Profile Photo Error:', rollbackError);
-        });
-        throw error;
-    }
+async function createProfilePhotoChange(photoFile, photoType, previousPhoto) {
+    await fs.mkdir(PROFILE_PHOTO_DIR, { recursive: true });
+    const filename = `${crypto.randomUUID()}${photoType.extension}`;
+    const newPhotoPath = getProfilePhotoFilePath(filename);
+    await fs.writeFile(newPhotoPath, photoFile.buffer, { flag: 'wx' });
+    return { filename, newPhotoPath, previousPhoto };
 }
 
 async function rollbackProfilePhotoChange(change) {
-    if (change.metadataChanged) {
-        if (change.previousMetadata) {
-            const restorePath =
-                `${change.metadataPath}.${crypto.randomUUID()}.tmp`;
-            await fs.writeFile(
-                restorePath,
-                JSON.stringify(change.previousMetadata),
-                { flag: 'wx' }
-            );
-            await fs.rename(restorePath, change.metadataPath);
-        } else {
-            await fs.unlink(change.metadataPath).catch(error => {
-                if (error.code !== 'ENOENT') throw error;
-            });
-        }
+    if (!change?.newPhotoPath) return;
+    await fs.unlink(change.newPhotoPath).catch(error => {
+        if (error.code !== 'ENOENT') throw error;
+    });
+}
+
+async function cleanupPreviousProfilePhoto(change) {
+    if (!change) return;
+
+    for (const photoPath of change.previousPhoto.photoPaths) {
+        if (photoPath === change.newPhotoPath) continue;
+        await fs.unlink(photoPath).catch(error => {
+            if (error.code !== 'ENOENT') {
+                console.error('Remove previous profile photo Error:', error);
+            }
+        });
     }
 
-    if (
-        change.previousPhotoRemoved &&
-        change.previousPhotoPath &&
-        change.previousPhotoBytes
-    ) {
-        await fs.writeFile(change.previousPhotoPath, change.previousPhotoBytes, {
-            flag: 'wx',
-        });
-    }
-    if (change.newPhotoPath) {
-        await fs.unlink(change.newPhotoPath).catch(error => {
-            if (error.code !== 'ENOENT') throw error;
-        });
-    }
-    if (change.temporaryMetadataPath) {
-        await fs.unlink(change.temporaryMetadataPath).catch(error => {
-            if (error.code !== 'ENOENT') throw error;
-        });
-    }
+    await fs.unlink(change.previousPhoto.metadataPath).catch(error => {
+        if (error.code !== 'ENOENT') {
+            console.error('Remove previous profile photo metadata Error:', error);
+        }
+    });
 }
 
 async function readTasks() {
@@ -840,7 +817,8 @@ app.patch(
             const profileResult = await connection.execute(
                 `
                 SELECT
-                    TO_CHAR(D_LAHIR, 'YYYY-MM-DD') AS TANGGAL_LAHIR_ISO
+                    TO_CHAR(D_LAHIR, 'YYYY-MM-DD') AS TANGGAL_LAHIR_ISO,
+                    FOTO
                 FROM TM_AGENCY2
                 WHERE I_AGEN = :agentId
                 FOR UPDATE
@@ -869,12 +847,17 @@ app.patch(
             }
 
             if (req.file || removePhoto) {
-                photoChange = await applyProfilePhotoChange({
+                const previousPhoto = await getExistingProfilePhoto(
                     agentId,
-                    photoFile: req.file,
-                    photoType,
-                    removePhoto,
-                });
+                    profileResult.rows[0].FOTO
+                );
+                photoChange = req.file
+                    ? await createProfilePhotoChange(
+                        req.file,
+                        photoType,
+                        previousPhoto
+                    )
+                    : { filename: null, previousPhoto };
             }
 
             const agentFields = [];
@@ -913,6 +896,10 @@ app.patch(
                 );
                 agencyBinds.birthDate = normalizedBirthDate;
             }
+            if (req.file || removePhoto) {
+                agencyFields.push('FOTO = :photoPath');
+                agencyBinds.photoPath = photoChange.filename;
+            }
             if (agencyFields.length) {
                 const agencyResult = await connection.execute(
                     `
@@ -936,6 +923,9 @@ app.patch(
 
             await connection.commit();
             databaseCommitted = true;
+            if (photoChange) {
+                await cleanupPreviousProfilePhoto(photoChange);
+            }
 
             if (normalizedPhone != null) {
                 Object.assign(req.authUser, {
@@ -1022,30 +1012,52 @@ app.get(
             });
         }
 
+        let connection;
         try {
-            const metadata = await readProfilePhotoMetadata(agentId);
-            if (!metadata) {
+            connection = await getConnection();
+            const result = await connection.execute(
+                `
+                SELECT FOTO
+                FROM TM_AGENCY2
+                WHERE I_AGEN = :agentId
+                `,
+                { agentId },
+                { outFormat: oracledb.OUT_FORMAT_OBJECT }
+            );
+            if (result.rows.length !== 1) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Profil agen tidak ditemukan',
+                });
+            }
+
+            const photo = await readProfilePhoto(
+                agentId,
+                result.rows[0].FOTO
+            );
+            if (!photo) {
                 return res.status(404).json({
                     success: false,
                     message: 'Foto profil belum diunggah',
                 });
             }
 
-            const photo = await fs.readFile(
-                path.join(PROFILE_PHOTO_DIR, metadata.filename)
-            );
             res.set({
-                'Content-Type': metadata.mimeType,
+                'Content-Type': photo.mimeType,
                 'Cache-Control': 'private, no-store',
                 'X-Content-Type-Options': 'nosniff',
             });
-            return res.send(photo);
+            return res.send(photo.bytes);
         } catch (error) {
             console.error('Get Agent Profile Photo Error:', error);
             return res.status(500).json({
                 success: false,
                 message: 'Gagal mengambil foto profil',
             });
+        } finally {
+            if (connection) {
+                await connection.close().catch(console.error);
+            }
         }
     }
 );
@@ -1115,7 +1127,7 @@ app.get(
 
             const agentResult = await connection.execute(
                 `
-                SELECT b.I_AGEN
+                SELECT b.I_AGEN, b.FOTO
                 FROM DAFTAR_AGEN a
                 INNER JOIN TM_AGENCY2 b
                     ON a.NOMOR_AGEN = b.I_AGEN
@@ -1133,23 +1145,23 @@ app.get(
                 });
             }
 
-            const metadata = await readProfilePhotoMetadata(agentId);
-            if (!metadata) {
+            const photo = await readProfilePhoto(
+                agentId,
+                agentResult.rows[0].FOTO
+            );
+            if (!photo) {
                 return res.status(404).json({
                     success: false,
                     message: 'Foto profil belum diunggah',
                 });
             }
 
-            const photo = await fs.readFile(
-                path.join(PROFILE_PHOTO_DIR, metadata.filename)
-            );
             res.set({
-                'Content-Type': metadata.mimeType,
+                'Content-Type': photo.mimeType,
                 'Cache-Control': 'private, no-store',
                 'X-Content-Type-Options': 'nosniff',
             });
-            return res.send(photo);
+            return res.send(photo.bytes);
         } catch (error) {
             console.error('Get Agent Profile Photo By ID Error:', error);
             return res.status(500).json({
@@ -1211,39 +1223,53 @@ app.post(
             });
         }
 
-        const metadataPath = getProfilePhotoMetadataPath(agentId);
-        const filename = `${crypto.randomUUID()}${photoType.extension}`;
-        const tempMetadataPath = `${metadataPath}.${crypto.randomUUID()}.tmp`;
-        const newPhotoPath = path.join(PROFILE_PHOTO_DIR, filename);
-        let previousMetadata;
-
+        let connection;
+        let photoChange;
+        let databaseCommitted = false;
         try {
-            await fs.mkdir(PROFILE_PHOTO_DIR, { recursive: true });
-            previousMetadata = await readProfilePhotoMetadata(agentId);
-            await fs.writeFile(newPhotoPath, req.file.buffer, { flag: 'wx' });
-            await fs.writeFile(
-                tempMetadataPath,
-                JSON.stringify({
-                    filename,
-                    mimeType: photoType.mimeType,
-                    updatedAt: new Date().toISOString(),
-                }),
-                { flag: 'wx' }
+            connection = await getConnection();
+            const profileResult = await connection.execute(
+                `
+                SELECT FOTO
+                FROM TM_AGENCY2
+                WHERE I_AGEN = :agentId
+                FOR UPDATE
+                `,
+                { agentId },
+                { outFormat: oracledb.OUT_FORMAT_OBJECT }
             );
-            await fs.rename(tempMetadataPath, metadataPath);
-
-            if (
-                previousMetadata &&
-                previousMetadata.filename !== filename
-            ) {
-                await fs.unlink(
-                    path.join(PROFILE_PHOTO_DIR, previousMetadata.filename)
-                ).catch(error => {
-                    if (error.code !== 'ENOENT') {
-                        console.error('Remove previous profile photo Error:', error);
-                    }
+            if (profileResult.rows.length !== 1) {
+                await connection.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: 'Data profil agen tidak ditemukan',
                 });
             }
+
+            const previousPhoto = await getExistingProfilePhoto(
+                agentId,
+                profileResult.rows[0].FOTO
+            );
+            photoChange = await createProfilePhotoChange(
+                req.file,
+                photoType,
+                previousPhoto
+            );
+            const updateResult = await connection.execute(
+                `
+                UPDATE TM_AGENCY2
+                SET FOTO = :photoPath
+                WHERE I_AGEN = :agentId
+                `,
+                { photoPath: photoChange.filename, agentId }
+            );
+            if (updateResult.rowsAffected !== 1) {
+                throw new Error('Data profil agen tidak ditemukan');
+            }
+
+            await connection.commit();
+            databaseCommitted = true;
+            await cleanupPreviousProfilePhoto(photoChange);
 
             return res.json({
                 success: true,
@@ -1253,21 +1279,28 @@ app.post(
                 },
             });
         } catch (error) {
-            await fs.unlink(newPhotoPath).catch(cleanupError => {
-                if (cleanupError.code !== 'ENOENT') {
-                    console.error('Remove incomplete profile photo Error:', cleanupError);
-                }
-            });
-            await fs.unlink(tempMetadataPath).catch(cleanupError => {
-                if (cleanupError.code !== 'ENOENT') {
-                    console.error('Remove temporary profile metadata Error:', cleanupError);
-                }
-            });
             console.error('Update Agent Profile Photo Error:', error);
+            if (connection && !databaseCommitted) {
+                await connection.rollback().catch(console.error);
+            }
+            if (photoChange && !databaseCommitted) {
+                await rollbackProfilePhotoChange(photoChange).catch(
+                    cleanupError => {
+                        console.error(
+                            'Rollback Agent Profile Photo Error:',
+                            cleanupError
+                        );
+                    }
+                );
+            }
             return res.status(500).json({
                 success: false,
                 message: 'Gagal menyimpan foto profil di server',
             });
+        } finally {
+            if (connection) {
+                await connection.close().catch(console.error);
+            }
         }
     }
 );
