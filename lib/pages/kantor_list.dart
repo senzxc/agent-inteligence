@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +14,16 @@ import '../widgets/press_bounce.dart';
 
 enum _KantorSortField { name, type }
 
+const _officeDetailFields = [
+  'NOMOR_KANTOR',
+  'NAMA_KANTOR',
+  'KODE_JENIS_KANTOR',
+  'KODE_KANTOR',
+  'ALAMAT_KANTOR_MUTASI',
+  'LATITUDE',
+  'LONGITUDE',
+];
+
 const Color _pageTop = Color(0xFFF8FBFF);
 const Color _pageBottom = Color(0xFFEAF3FF);
 const Color _brandBlue = Color(0xFF1565C0);
@@ -23,6 +34,42 @@ const BoxShadow _cardShadow = BoxShadow(
   blurRadius: 18,
   offset: Offset(0, 7),
 );
+
+class _OfficeLabelPointerPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = ui.Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..quadraticBezierTo(
+        size.width * 0.72,
+        size.height * 0.3,
+        size.width / 2,
+        size.height,
+      )
+      ..quadraticBezierTo(size.width * 0.28, size.height * 0.3, 0, 0)
+      ..close();
+    canvas.drawShadow(path, const Color(0x55334155), 3, true);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0xEEF1F3F5)
+        ..style = PaintingStyle.fill
+        ..isAntiAlias = true,
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0x66FFFFFF)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8
+        ..isAntiAlias = true,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _OfficeLabelPointerPainter oldDelegate) => false;
+}
 
 class _OfficeMarkerTransition {
   const _OfficeMarkerTransition({
@@ -467,89 +514,68 @@ class _KantorListPageState extends State<KantorListPage>
     final point = camera.latLngToScreenPoint(coordinates);
     final markerCenter = Offset(point.x, point.y);
     const labelWidth = 172.0;
-    const labelHeight = 42.0;
-    final markerBounds = Rect.fromLTWH(
-      0,
-      0,
-      camera.nonRotatedSize.x,
-      camera.nonRotatedSize.y,
-    );
-    const directions = [
-      Offset(0, -1),
-      Offset(1, -0.5),
-      Offset(1, 0.5),
-      Offset(0, 1),
-      Offset(-1, 0.5),
-      Offset(-1, -0.5),
-      Offset(0.7, -1),
-      Offset(-0.7, -1),
-    ];
-    Rect? selectedRect;
-    for (final radius in [38.0, 68.0, 102.0, 144.0, 190.0]) {
-      for (final direction in directions) {
-        final desiredCenter =
-            markerCenter + Offset(direction.dx * radius, direction.dy * radius);
-        final center = Offset(
-          desiredCenter.dx
-              .clamp(labelWidth / 2, camera.nonRotatedSize.x - labelWidth / 2)
-              .toDouble(),
-          desiredCenter.dy
-              .clamp(labelHeight / 2, camera.nonRotatedSize.y - labelHeight / 2)
-              .toDouble(),
-        );
-        final candidate = Rect.fromCenter(
-          center: center,
-          width: labelWidth,
-          height: labelHeight,
-        );
-        if (markerBounds.contains(candidate.topLeft) &&
-            markerBounds.contains(candidate.bottomRight) &&
-            !candidate.overlaps(const Rect.fromLTWH(8, 8, 240, 56))) {
-          selectedRect = candidate;
-          break;
-        }
-      }
-      if (selectedRect != null) break;
-    }
-    if (selectedRect == null) {
-      return const SizedBox.shrink(key: ValueKey('no-office-label'));
-    }
+    const bubbleHeight = 42.0;
+    const pointerHeight = 9.0;
+    final left = (markerCenter.dx - labelWidth / 2)
+        .clamp(0.0, camera.nonRotatedSize.x - labelWidth)
+        .toDouble();
+    final top = (markerCenter.dy - 27 - bubbleHeight - pointerHeight)
+        .clamp(4.0, camera.nonRotatedSize.y - bubbleHeight - pointerHeight)
+        .toDouble();
 
     return Stack(
       key: ValueKey('${office['KODE_KANTOR'] ?? name}'),
       children: [
         Positioned(
-          left: selectedRect.left,
-          top: selectedRect.top,
+          left: left,
+          top: top,
           width: labelWidth,
-          height: labelHeight,
+          height: bubbleHeight + pointerHeight,
           child: PressBounce(
             onTap: () => _selectOffice(office),
-            child: Material(
-              color: Colors.white,
-              elevation: 3,
-              shadowColor: const Color(0x330F172A),
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _brandBlue),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFF1E293B),
-                    fontSize: 10,
-                    height: 1.15,
-                    fontWeight: FontWeight.w700,
+            child: Column(
+              children: [
+                Container(
+                  height: bubbleHeight,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xEEF1F3F5),
+                    borderRadius: BorderRadius.circular(11),
+                    border: Border.all(
+                      color: const Color(0x99FFFFFF),
+                      width: 0.8,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x3D334155),
+                        blurRadius: 9,
+                        spreadRadius: 0.5,
+                        offset: Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Color(0xFF1E293B),
+                      fontSize: 10,
+                      height: 1.15,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
+                CustomPaint(
+                  size: const Size(18, pointerHeight),
+                  painter: _OfficeLabelPointerPainter(),
+                ),
+              ],
             ),
           ),
         ),
@@ -835,7 +861,10 @@ class _KantorListPageState extends State<KantorListPage>
     required double availableHeight,
   }) {
     final officeName = office['NAMA_KANTOR']?.toString().trim();
-    final fields = office.entries.toList();
+    final fields = [
+      for (final fieldName in _officeDetailFields)
+        MapEntry(fieldName, office[fieldName]),
+    ];
     final minSheetSize =
         ((188 + MediaQuery.paddingOf(context).bottom) / availableHeight)
             .clamp(0.16, 0.48)
@@ -1002,16 +1031,18 @@ class _KantorListPageState extends State<KantorListPage>
         : value is Map || value is List
         ? jsonEncode(value)
         : value.toString();
-    final label = fieldName
-        .replaceAll('_', ' ')
-        .toLowerCase()
-        .split(' ')
-        .map(
-          (word) => word.isEmpty
-              ? word
-              : '${word[0].toUpperCase()}${word.substring(1)}',
-        )
-        .join(' ');
+    final label = fieldName == 'ALAMAT_KANTOR_MUTASI'
+        ? 'Alamat Kantor'
+        : fieldName
+              .replaceAll('_', ' ')
+              .toLowerCase()
+              .split(' ')
+              .map(
+                (word) => word.isEmpty
+                    ? word
+                    : '${word[0].toUpperCase()}${word.substring(1)}',
+              )
+              .join(' ');
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 9),
