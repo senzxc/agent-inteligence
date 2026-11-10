@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../services/api_service.dart';
+import '../widgets/profile_photo_cropper.dart';
 
 class AgentProfileEditPage extends StatefulWidget {
   final Map<String, dynamic> agent;
@@ -114,54 +114,16 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
       final image = await _imagePicker.pickImage(source: ImageSource.gallery);
       if (image == null || !mounted) return;
 
-      final uiSettings = <PlatformUiSettings>[
-        if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
-          AndroidUiSettings(
-            toolbarTitle: 'Edit foto profil',
-            toolbarColor: _primary,
-            toolbarWidgetColor: Colors.white,
-            activeControlsWidgetColor: _primary,
-            lockAspectRatio: false,
-            initAspectRatio: CropAspectRatioPreset.original,
-            aspectRatioPresets: [
-              CropAspectRatioPreset.original,
-              CropAspectRatioPreset.square,
-              CropAspectRatioPreset.ratio4x3,
-              CropAspectRatioPreset.ratio16x9,
-            ],
-          ),
-        if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS)
-          IOSUiSettings(
-            title: 'Edit foto profil',
-            aspectRatioLockEnabled: false,
-            resetAspectRatioEnabled: true,
-            aspectRatioPresets: [
-              CropAspectRatioPreset.original,
-              CropAspectRatioPreset.square,
-              CropAspectRatioPreset.ratio4x3,
-              CropAspectRatioPreset.ratio16x9,
-            ],
-          ),
-        if (kIsWeb)
-          WebUiSettings(
-            context: context,
-            presentStyle: WebPresentStyle.dialog,
-            size: const CropperSize(width: 520, height: 520),
-          ),
-      ];
-      final croppedImage = await ImageCropper().cropImage(
-        sourcePath: image.path,
-        compressFormat: ImageCompressFormat.jpg,
-        compressQuality: 90,
-        maxWidth: 1200,
-        maxHeight: 1200,
-        uiSettings: uiSettings,
-      );
-      if (croppedImage == null || !mounted) return;
-
-      final bytes = await croppedImage.readAsBytes();
+      final sourceBytes = await image.readAsBytes();
       if (!mounted) return;
-      final validationError = _validateProfilePhoto(bytes);
+      final croppedBytes = await Navigator.of(context).push<Uint8List>(
+        MaterialPageRoute(
+          builder: (_) => ProfilePhotoCropperPage(sourceBytes: sourceBytes),
+        ),
+      );
+      if (croppedBytes == null || !mounted) return;
+
+      final validationError = _validateProfilePhoto(croppedBytes);
       if (validationError != null) {
         setState(() {
           _photoError = validationError;
@@ -171,7 +133,7 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
 
       setState(() {
         _photoError = null;
-        _selectedPhotoBytes = bytes;
+        _selectedPhotoBytes = croppedBytes;
         _selectedPhotoName = 'profile-photo.jpg';
         _removeProfilePhoto = false;
       });
