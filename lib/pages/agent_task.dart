@@ -49,10 +49,12 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   bool _isRefreshingTasks = false;
   bool _isSelectionMode = false;
   bool _isBulkDeleting = false;
+  bool _isRefreshingAgentHeader = false;
   Uint8List? _agentPhotoBytes;
-  String? _loadedPhotoAgentId;
+  late Map<String, dynamic> _agentProfile;
   String? _errorMessage;
   String? _refreshError;
+  String? _agentHeaderRefreshError;
   String _selectedTaskStatus = '';
   _TaskSortField _taskSortField = _TaskSortField.createdAt;
   bool _sortAscending = false;
@@ -60,7 +62,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
 
   String _firstValue(List<String> keys, {String fallback = '-'}) {
     for (final key in keys) {
-      final value = widget.agent[key]?.toString().trim();
+      final value = _agentProfile[key]?.toString().trim();
 
       if (value != null && value.isNotEmpty && value != 'null') {
         return value;
@@ -184,26 +186,108 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   @override
   void initState() {
     super.initState();
-    _loadAgentProfilePhoto();
-    _loadTasks();
+    _agentProfile = Map<String, dynamic>.from(widget.agent);
+    _refreshPage(showLoading: true);
     _taskRefreshTimer = Timer.periodic(
       const Duration(minutes: 1),
       (_) => _loadTasks(showLoading: false),
     );
   }
 
-  Future<void> _loadAgentProfilePhoto() async {
+  @override
+  void didUpdateWidget(covariant AgentTaskPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.agent, widget.agent)) {
+      _agentProfile = Map<String, dynamic>.from(widget.agent);
+      _refreshPage();
+    }
+  }
+
+  Future<void> _refreshPage({bool showLoading = false}) async {
+    await Future.wait([
+      _loadTasks(showLoading: showLoading),
+      _refreshAgentHeader(),
+    ]);
+  }
+
+  Future<void> _refreshAgentHeader() async {
     final agentId = _agentId.trim();
-    if (agentId.isEmpty || agentId == '-') return;
-    if (_loadedPhotoAgentId == agentId) return;
-    _loadedPhotoAgentId = agentId;
+    if (agentId.isEmpty || agentId == '-' || _isRefreshingAgentHeader) return;
+    _isRefreshingAgentHeader = true;
 
     try {
+      final currentUser = await ApiService.getCurrentUser();
+      final currentUserId = _profileAgentId(currentUser);
+      Map<String, dynamic>? latestProfile;
+
+      if (currentUserId.toUpperCase() == agentId.toUpperCase()) {
+        latestProfile = currentUser;
+      } else {
+        final response = await ApiService.getAgentProfiles(search: agentId);
+        final profiles = response['data'];
+        if (profiles is List) {
+          for (final profile in profiles.whereType<Map>()) {
+            final candidate = Map<String, dynamic>.from(profile);
+            if (_profileAgentId(candidate).toUpperCase() ==
+                agentId.toUpperCase()) {
+              latestProfile = candidate;
+              break;
+            }
+          }
+        }
+      }
+
+      if (latestProfile == null) {
+        throw Exception('Profil agen tidak ditemukan saat memperbarui header.');
+      }
+
+      if (mounted) {
+        setState(() {
+          _agentProfile.addAll(latestProfile!);
+        });
+      }
+
       final photo = await ApiService.getAgentProfilePhoto(agentId);
-      if (mounted) setState(() => _agentPhotoBytes = photo);
+      if (mounted) {
+        setState(() {
+          _agentPhotoBytes = photo;
+          _agentHeaderRefreshError = null;
+        });
+      }
     } catch (error) {
-      debugPrint('Gagal memuat foto profil agen untuk halaman tugas: $error');
+      if (mounted) {
+        setState(() {
+          _agentHeaderRefreshError = _cleanError(error);
+        });
+      }
+    } finally {
+      _isRefreshingAgentHeader = false;
     }
+  }
+
+  String _profileAgentId(Map<String, dynamic> profile) {
+    for (final key in [
+      'I_AGEN',
+      'NOMOR_AGEN',
+      'STAMBUK',
+      'nomorAgen',
+      'stambuk',
+    ]) {
+      final value = profile[key]?.toString().trim();
+      if (value != null && value.isNotEmpty && value != 'null') {
+        return value;
+      }
+    }
+    return '';
+  }
+
+  String? get _refreshWarning {
+    final errors = [
+      _refreshError,
+      if (_agentHeaderRefreshError != null)
+        'Profil agen: $_agentHeaderRefreshError',
+    ].whereType<String>().where((error) => error.isNotEmpty);
+    return errors.isEmpty ? null : errors.join('\n');
   }
 
   @override
@@ -2237,8 +2321,8 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Muat ulang tugas',
-            onPressed: _isLoading ? null : _loadTasks,
+            tooltip: 'Muat ulang tugas dan profil',
+            onPressed: _isLoading ? null : _refreshPage,
             icon: const Icon(Icons.refresh_rounded, color: _primary),
           ),
           const SizedBox(width: 6),
@@ -2309,14 +2393,14 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
         child: SafeArea(
           top: false,
           child: RefreshIndicator(
-            onRefresh: _loadTasks,
+            onRefresh: _refreshPage,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 18, 16, 100),
               children: [
                 _buildAgentCard(),
                 const SizedBox(height: 20),
-                if (_refreshError != null) ...[
+                if (_refreshWarning != null) ...[
                   _buildTaskRefreshWarning(),
                   const SizedBox(height: 16),
                 ],
@@ -2783,7 +2867,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
           const SizedBox(width: 9),
           Expanded(
             child: Text(
-              'Gagal memperbarui status tugas: $_refreshError',
+              'Gagal memperbarui data: $_refreshWarning',
               style: const TextStyle(
                 color: Color(0xFF92400E),
                 fontSize: 12,
@@ -2794,9 +2878,9 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
           IconButton(
             tooltip: 'Coba muat ulang',
             visualDensity: VisualDensity.compact,
-            onPressed: _isRefreshingTasks
+            onPressed: _isRefreshingTasks || _isRefreshingAgentHeader
                 ? null
-                : () => _loadTasks(showLoading: false),
+                : () => _refreshPage(showLoading: false),
             icon: const Icon(
               Icons.refresh_rounded,
               color: Color(0xFFB45309),
