@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../utils/kantor_type.dart';
 import '../widgets/agent_marker.dart';
+import '../widgets/agent_profile_photo.dart';
 import '../widgets/press_bounce.dart';
 import 'agent_task.dart';
 
@@ -1670,41 +1671,19 @@ class _AgentListPageState extends State<AgentListPage>
                         future: photoFuture,
                         builder: (context, snapshot) {
                           final photo = snapshot.data;
-                          return Container(
-                            width: 54,
-                            height: 54,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.16),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.28),
+                          return AgentProfilePhoto(
+                            photoBytes: photo,
+                            size: 54,
+                            circleThumbnail: true,
+                            semanticLabel: 'Perbesar foto profil $name',
+                            placeholder: Text(
+                              _agentInitials(name),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
-                            clipBehavior: Clip.antiAlias,
-                            child: photo == null
-                                ? Text(
-                                    _agentInitials(name),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  )
-                                : Image.memory(
-                                    photo,
-                                    width: 54,
-                                    height: 54,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, _, _) => Text(
-                                      _agentInitials(name),
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
                           );
                         },
                       ),
