@@ -1,6 +1,6 @@
-import 'dart:typed_data';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../services/api_service.dart';
@@ -41,6 +41,7 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
   bool _isLoadingPhoto = true;
   bool _removeProfilePhoto = false;
   bool _isSaving = false;
+  bool _isEditingPhoto = false;
 
   String _firstValue(List<String> keys) {
     for (final key in keys) {
@@ -94,24 +95,76 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
   }
 
   Future<void> _pickProfilePhoto() async {
-    if (_isSaving) return;
+    if (_isSaving || _isEditingPhoto) return;
+    if (!kIsWeb &&
+        defaultTargetPlatform != TargetPlatform.android &&
+        defaultTargetPlatform != TargetPlatform.iOS) {
+      setState(() {
+        _photoError = 'Edit foto tersedia di Android, iOS, dan web.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isEditingPhoto = true;
+      _photoError = null;
+    });
+
     try {
-      final image = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85,
-        maxWidth: 1200,
-        maxHeight: 1200,
-      );
+      final image = await _imagePicker.pickImage(source: ImageSource.gallery);
       if (image == null || !mounted) return;
 
-      final bytes = await image.readAsBytes();
+      final uiSettings = <PlatformUiSettings>[
+        if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
+          AndroidUiSettings(
+            toolbarTitle: 'Edit foto profil',
+            toolbarColor: _primary,
+            toolbarWidgetColor: Colors.white,
+            activeControlsWidgetColor: _primary,
+            lockAspectRatio: false,
+            initAspectRatio: CropAspectRatioPreset.original,
+            aspectRatioPresets: [
+              CropAspectRatioPreset.original,
+              CropAspectRatioPreset.square,
+              CropAspectRatioPreset.ratio4x3,
+              CropAspectRatioPreset.ratio16x9,
+            ],
+          ),
+        if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS)
+          IOSUiSettings(
+            title: 'Edit foto profil',
+            aspectRatioLockEnabled: false,
+            resetAspectRatioEnabled: true,
+            aspectRatioPresets: [
+              CropAspectRatioPreset.original,
+              CropAspectRatioPreset.square,
+              CropAspectRatioPreset.ratio4x3,
+              CropAspectRatioPreset.ratio16x9,
+            ],
+          ),
+        if (kIsWeb)
+          WebUiSettings(
+            context: context,
+            presentStyle: WebPresentStyle.dialog,
+            size: const CropperSize(width: 520, height: 520),
+          ),
+      ];
+      final croppedImage = await ImageCropper().cropImage(
+        sourcePath: image.path,
+        compressFormat: ImageCompressFormat.jpg,
+        compressQuality: 90,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        uiSettings: uiSettings,
+      );
+      if (croppedImage == null || !mounted) return;
+
+      final bytes = await croppedImage.readAsBytes();
       if (!mounted) return;
       final validationError = _validateProfilePhoto(bytes);
       if (validationError != null) {
         setState(() {
           _photoError = validationError;
-          _selectedPhotoBytes = null;
-          _selectedPhotoName = null;
         });
         return;
       }
@@ -119,7 +172,7 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
       setState(() {
         _photoError = null;
         _selectedPhotoBytes = bytes;
-        _selectedPhotoName = image.name;
+        _selectedPhotoName = 'profile-photo.jpg';
         _removeProfilePhoto = false;
       });
     } catch (error) {
@@ -129,6 +182,8 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
             'Foto gagal dipilih: '
             '${error.toString().replaceFirst('Exception: ', '')}';
       });
+    } finally {
+      if (mounted) setState(() => _isEditingPhoto = false);
     }
   }
 
@@ -274,6 +329,7 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
   Future<void> _saveProfile() async {
     if (_isLoadingProfile ||
         _profileLoadError != null ||
+        _isEditingPhoto ||
         _isSaving ||
         !_formKey.currentState!.validate()) {
       return;
@@ -635,6 +691,22 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
                           ),
                         ),
                       ],
+                      if (_isEditingPhoto) ...[
+                        const SizedBox(height: 12),
+                        const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: _primary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Menyiapkan foto...',
+                          style: TextStyle(color: _textSecondary, fontSize: 12),
+                        ),
+                      ],
                       if (_photoLoadError != null) ...[
                         const SizedBox(height: 10),
                         Text(
@@ -668,7 +740,9 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
                         runSpacing: 10,
                         children: [
                           OutlinedButton.icon(
-                            onPressed: _isSaving ? null : _pickProfilePhoto,
+                            onPressed: _isSaving || _isEditingPhoto
+                                ? null
+                                : _pickProfilePhoto,
                             icon: const Icon(Icons.photo_library_outlined),
                             label: Text(
                               _selectedPhotoBytes == null
@@ -685,7 +759,7 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
                           ),
                           if (_selectedPhotoBytes != null)
                             TextButton.icon(
-                              onPressed: _isSaving
+                              onPressed: _isSaving || _isEditingPhoto
                                   ? null
                                   : () => setState(() {
                                       _selectedPhotoBytes = null;
@@ -697,7 +771,7 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
                             )
                           else if (_removeProfilePhoto)
                             TextButton.icon(
-                              onPressed: _isSaving
+                              onPressed: _isSaving || _isEditingPhoto
                                   ? null
                                   : () => setState(
                                       () => _removeProfilePhoto = false,
@@ -707,7 +781,7 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
                             )
                           else if (_profilePhotoBytes != null)
                             OutlinedButton.icon(
-                              onPressed: _isSaving
+                              onPressed: _isSaving || _isEditingPhoto
                                   ? null
                                   : () => setState(() {
                                       _removeProfilePhoto = true;
@@ -887,10 +961,13 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
               ),
               child: FilledButton.icon(
                 onPressed:
-                    _isSaving || _isLoadingProfile || _profileLoadError != null
+                    _isSaving ||
+                        _isEditingPhoto ||
+                        _isLoadingProfile ||
+                        _profileLoadError != null
                     ? null
                     : _saveProfile,
-                icon: _isSaving || _isLoadingProfile
+                icon: _isSaving || _isEditingPhoto || _isLoadingProfile
                     ? const SizedBox(
                         width: 19,
                         height: 19,
@@ -905,6 +982,8 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
                       ? 'Memuat profil...'
                       : _isSaving
                       ? 'Menyimpan...'
+                      : _isEditingPhoto
+                      ? 'Menyiapkan foto...'
                       : 'Simpan perubahan',
                 ),
                 style: FilledButton.styleFrom(
