@@ -10,6 +10,11 @@ require('dotenv').config();
 const { getConnection } = require('./database');
 const oracledb = require('oracledb');
 const { getLocationAnomalies } = require('./location_anomaly');
+const {
+    TRACKING_LOCATION_TIMEOUT_MS,
+    expireStaleAgentTracking,
+    restoreExpiredAgentForLocation,
+} = require('./tracking_presence');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,11 +31,13 @@ const activeSessions = new Map();
 
 // Lokasi agen aktif: ID agen -> data lokasi
 const activeAgents = new Map();
+const trackingIntents = new Set();
 
 // Lokasi terakhir agen, termasuk agen yang sudah berhenti tracking
 const lastKnownAgents = new Map();
 
 function stopAgentTracking(stambuk) {
+    trackingIntents.delete(stambuk);
     const agent = activeAgents.get(stambuk);
     if (!agent) return lastKnownAgents.get(stambuk) ?? null;
 
@@ -1520,6 +1527,7 @@ app.get(
         let connection;
 
         try {
+            expireStaleAgentTracking(activeAgents, lastKnownAgents);
             const conditions = ['a.STATUS = 1'];
             const binds = {};
             let branch = null;
@@ -1626,6 +1634,7 @@ app.post(
     (req, res) => {
         const user = req.authUser;
         const stambuk = String(getAuthenticatedUserId(user) ?? '');
+        expireStaleAgentTracking(activeAgents, lastKnownAgents);
 
         if (activeAgents.has(stambuk)) {
             return res.status(409).json({
@@ -1652,6 +1661,7 @@ app.post(
             isTracking: true,
         };
 
+        trackingIntents.add(stambuk);
         activeAgents.set(stambuk, agent);
 
         return res.status(201).json({
@@ -1671,6 +1681,7 @@ app.get(
     authenticate,
     requireRoles('HEAD_MARKETING', 'HEAD_AGENT', 'AGENT'),
     (req, res) => {
+        expireStaleAgentTracking(activeAgents, lastKnownAgents);
         const stambuk = String(getAuthenticatedUserId(req.authUser) ?? '');
         const agent = activeAgents.get(stambuk) ?? null;
 
@@ -1692,9 +1703,10 @@ app.post(
     requireRoles('HEAD_MARKETING', 'HEAD_AGENT', 'AGENT'),
     (req, res) => {
         const stambuk = String(getAuthenticatedUserId(req.authUser) ?? '');
-        const agent = activeAgents.get(stambuk);
+        expireStaleAgentTracking(activeAgents, lastKnownAgents);
+        let agent = activeAgents.get(stambuk);
 
-        if (!agent) {
+        if (!agent && !trackingIntents.has(stambuk)) {
             return res.status(409).json({
                 success: false,
                 message: 'Mulai tracking terlebih dahulu',
@@ -1730,6 +1742,21 @@ app.post(
             });
         }
 
+        if (!agent) {
+            agent = restoreExpiredAgentForLocation(
+                stambuk,
+                activeAgents,
+                lastKnownAgents,
+                trackingIntents
+            );
+        }
+        if (!agent) {
+            return res.status(409).json({
+                success: false,
+                message: 'Mulai tracking terlebih dahulu',
+            });
+        }
+
         const receivedAt = new Date();
         const anomalies = getLocationAnomalies(
             agent,
@@ -1759,6 +1786,9 @@ app.post(
         agent.lastUpdated = receivedAt.toISOString();
         agent.status = 'active';
         agent.isTracking = true;
+        delete agent.offlineAt;
+        delete agent.offlineReason;
+        delete agent.stoppedAt;
 
         activeAgents.set(stambuk, agent);
         lastKnownAgents.set(stambuk, { ...agent });
@@ -1781,6 +1811,7 @@ app.post(
     requireRoles('HEAD_MARKETING', 'HEAD_AGENT', 'AGENT'),
     (req, res) => {
         const stambuk = String(getAuthenticatedUserId(req.authUser) ?? '');
+        expireStaleAgentTracking(activeAgents, lastKnownAgents);
         const agent = stopAgentTracking(stambuk);
 
         return res.json({
@@ -1806,6 +1837,7 @@ app.get(
     authenticate,
     requireAgentViewer,
     (req, res) => {
+        expireStaleAgentTracking(activeAgents, lastKnownAgents);
         const filterKantor = req.query.kantor
             ? String(req.query.kantor).trim().toUpperCase()
             : null;
@@ -2227,4 +2259,15 @@ app.listen(PORT, '0.0.0.0', () => {
             console.error('Auto-complete overdue tasks Error:', error);
         });
     }, 60_000);
+    setInterval(() => {
+        const expiredAgents = expireStaleAgentTracking(
+            activeAgents,
+            lastKnownAgents
+        );
+        if (expiredAgents.length > 0) {
+            console.log(
+                `Tracking dinyatakan offline setelah ${TRACKING_LOCATION_TIMEOUT_MS / 1000} detik tanpa pembaruan lokasi: ${expiredAgents.map(agent => agent.stambuk).join(', ')}`
+            );
+        }
+    }, 15_000);
 });
