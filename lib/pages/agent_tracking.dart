@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
 
 import '../services/api_service.dart';
+import '../services/gps_tracking_service.dart';
 
 const _blueDark = Color(0xFF0D47A1);
 const _blue = Color(0xFF1B72D7);
@@ -26,12 +27,15 @@ class _AgentTrackingPageState extends State<AgentTrackingPage> {
   final flutter_map.MapController _mapController = flutter_map.MapController();
 
   StreamSubscription<Position>? _positionStream;
+  StreamSubscription<String?>? _locationWarningStream;
   Timer? _durationTimer;
 
   Position? _position;
   bool _isTracking = false;
   bool _isLoading = true;
   String? _errorMessage;
+  String? _locationWarning;
+  String? _trackingNotice;
   DateTime? _lastUpdated;
   DateTime? _taskStartedAt;
   Duration _taskDuration = Duration.zero;
@@ -111,13 +115,14 @@ class _AgentTrackingPageState extends State<AgentTrackingPage> {
         _startDurationTimer();
       }
 
-      final position = await _getCurrentPosition();
-      await ApiService.sendTrackingLocation(
-        latitude: position.latitude,
-        longitude: position.longitude,
-        accuracy: position.accuracy,
-        speed: position.speed,
-      );
+      final trackingService = AgentGpsTrackingService.instance;
+      _trackingNotice = _trackingPermissionNotice(trackingService);
+      _locationWarning = trackingService.latestLocationWarning;
+      final position =
+          trackingService.latestPosition ?? await _getCurrentPosition();
+      if (trackingService.latestPosition == null) {
+        await _sendPosition(position);
+      }
 
       if (!mounted) return;
       setState(() {
@@ -163,55 +168,70 @@ class _AgentTrackingPageState extends State<AgentTrackingPage> {
     final position = _position;
     if (position == null) return;
 
-    _mapController.move(
-      LatLng(position.latitude, position.longitude),
-      16,
+    _mapController.move(LatLng(position.latitude, position.longitude), 16);
+  }
+
+  Future<void> _sendPosition(Position position) async {
+    final result = await ApiService.sendTrackingLocation(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      accuracy: position.accuracy,
+      speed: position.speed,
+      isMocked: position.isMocked,
     );
+
+    final response = result['data'];
+    if (response is Map && response['locationSuspicious'] == true) {
+      final warnings = response['locationWarnings'];
+      if (mounted) {
+        setState(() {
+          _locationWarning = warnings is List && warnings.isNotEmpty
+              ? warnings.join(', ')
+              : 'Perpindahan lokasi perlu diverifikasi.';
+        });
+      }
+    } else {
+      _updateLocationWarning(position);
+    }
+  }
+
+  void _updateLocationWarning(Position position) {
+    if (!mounted) return;
+    setState(() {
+      _locationWarning = position.isMocked
+          ? 'Perangkat menandai lokasi ini sebagai mock; lokasi tetap dikirim untuk ditinjau.'
+          : null;
+    });
   }
 
   void _listenForLocationUpdates() {
     unawaited(_positionStream?.cancel());
-    _positionStream =
-        Geolocator.getPositionStream(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 5,
-          ),
-        ).listen(
-          (position) async {
-            if (!mounted) return;
+    _positionStream = AgentGpsTrackingService.instance.positions.listen(
+      (position) {
+        if (!mounted) return;
 
-            setState(() {
-              _position = position;
-              _lastUpdated = DateTime.now();
-              _errorMessage = null;
-            });
-
-            // Kamera peta tidak mengikuti setiap update GPS agar pengguna
-            // tetap bisa menggeser atau memperbesar peta dengan bebas.
-            try {
-              await ApiService.sendTrackingLocation(
-                latitude: position.latitude,
-                longitude: position.longitude,
-                accuracy: position.accuracy,
-                speed: position.speed,
-              );
-            } catch (error) {
-              if (!mounted) return;
-              setState(
-                () => _errorMessage =
-                    'Gagal mengirim lokasi: ${_cleanError(error)}',
-              );
-            }
-          },
-          onError: (Object error) {
-            if (!mounted) return;
-            setState(
-              () => _errorMessage =
-                  'Pembaruan GPS bermasalah: ${_cleanError(error)}',
-            );
-          },
+        setState(() {
+          _position = position;
+          _lastUpdated = DateTime.now();
+          _errorMessage = null;
+        });
+      },
+      onError: (Object error) {
+        if (!mounted) return;
+        setState(
+          () =>
+              _errorMessage = 'Pembaruan GPS bermasalah: ${_cleanError(error)}',
         );
+      },
+    );
+    unawaited(_locationWarningStream?.cancel());
+    _locationWarningStream = AgentGpsTrackingService.instance.locationWarnings
+        .listen((warning) {
+          if (!mounted) return;
+          setState(() {
+            _locationWarning = warning;
+          });
+        });
   }
 
   Future<void> _confirmStartTracking(BuildContext localizedContext) async {
@@ -361,6 +381,13 @@ class _AgentTrackingPageState extends State<AgentTrackingPage> {
     return result ?? false;
   }
 
+  String? _trackingPermissionNotice(AgentGpsTrackingService service) {
+    if (service.backgroundLocationAllowed == false) {
+      return 'Izin lokasi “Sepanjang waktu” tidak aktif. Tracking tetap memakai layanan foreground, tetapi sistem dapat menghentikannya jika aplikasi ditutup paksa.';
+    }
+    return null;
+  }
+
   Future<void> _startTracking() async {
     if (_isLoading || _isTracking) return;
 
@@ -370,15 +397,15 @@ class _AgentTrackingPageState extends State<AgentTrackingPage> {
     });
 
     try {
-      final firstPosition = await _getCurrentPosition();
-
-      await ApiService.startTracking();
-      await ApiService.sendTrackingLocation(
-        latitude: firstPosition.latitude,
-        longitude: firstPosition.longitude,
-        accuracy: firstPosition.accuracy,
-        speed: firstPosition.speed,
-      );
+      final trackingService = AgentGpsTrackingService.instance;
+      await trackingService.startAfterLogin();
+      _trackingNotice = _trackingPermissionNotice(trackingService);
+      _locationWarning = trackingService.latestLocationWarning;
+      final firstPosition =
+          trackingService.latestPosition ?? await _getCurrentPosition();
+      if (trackingService.latestPosition == null) {
+        await _sendPosition(firstPosition);
+      }
 
       if (!mounted) return;
       setState(() {
@@ -416,8 +443,11 @@ class _AgentTrackingPageState extends State<AgentTrackingPage> {
 
     try {
       await ApiService.stopTracking();
+      await AgentGpsTrackingService.instance.stopLocationUpdates();
       await _positionStream?.cancel();
       _positionStream = null;
+      await _locationWarningStream?.cancel();
+      _locationWarningStream = null;
       _durationTimer?.cancel();
       _durationTimer = null;
 
@@ -530,6 +560,7 @@ class _AgentTrackingPageState extends State<AgentTrackingPage> {
   @override
   void dispose() {
     unawaited(_positionStream?.cancel());
+    unawaited(_locationWarningStream?.cancel());
     _durationTimer?.cancel();
     _mapController.dispose();
     super.dispose();
@@ -1013,6 +1044,74 @@ class _AgentTrackingPageState extends State<AgentTrackingPage> {
                               ],
                             ),
                           ),
+                          if (_trackingNotice != null) ...[
+                            const SizedBox(height: 14),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFFBEB),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: const Color(0xFFFDE68A),
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(
+                                    Icons.info_outline_rounded,
+                                    color: Color(0xFFB45309),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      _trackingNotice!,
+                                      style: const TextStyle(
+                                        color: Color(0xFF92400E),
+                                        fontSize: 13,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          if (_locationWarning != null) ...[
+                            const SizedBox(height: 14),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFF7ED),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: const Color(0xFFFED7AA),
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(
+                                    Icons.warning_amber_rounded,
+                                    color: Color(0xFFB45309),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'Lokasi perlu diverifikasi: $_locationWarning',
+                                      style: const TextStyle(
+                                        color: Color(0xFF92400E),
+                                        fontSize: 13,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                           if (_errorMessage != null) ...[
                             const SizedBox(height: 14),
                             Container(
