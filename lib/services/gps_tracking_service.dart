@@ -121,8 +121,15 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
     if (_isAndroid) {
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 5,
+        distanceFilter: 0,
         intervalDuration: const Duration(seconds: 10),
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationTitle: 'Pelacakan lokasi aktif',
+          notificationText: 'Lokasi dibagikan selama Anda bertugas.',
+          notificationChannelName: 'Pelacakan lokasi',
+          enableWakeLock: true,
+          setOngoing: true,
+        ),
       );
     }
 
