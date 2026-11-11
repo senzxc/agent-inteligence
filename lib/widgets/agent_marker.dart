@@ -10,7 +10,7 @@ const _agentMarkerColors = [
   Color(0xFFDC2626),
   Color(0xFF4F46E5),
   Color(0xFFCA8A04),
-  Color(0xFF64748B),
+  Color(0xFFC026D3),
   Color(0xFF7C3AED),
   Color(0xFF0891B2),
 ];
