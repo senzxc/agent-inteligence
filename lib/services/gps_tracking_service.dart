@@ -7,6 +7,8 @@ import 'package:location/location.dart' as location_plugin;
 
 import '../services/api_service.dart';
 
+enum _MovementMode { stationary, walking, driving }
+
 class AgentGpsTrackingService with WidgetsBindingObserver {
   AgentGpsTrackingService._();
 
@@ -21,9 +23,16 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
   StreamSubscription<Position>? _positionSubscription;
   StreamSubscription<ServiceStatus>? _gpsStatusSubscription;
   final Set<Future<void>> _pendingLocationUpdates = {};
+  Future<void> _locationUpdateQueue = Future<void>.value();
   Position? _latestPosition;
+  Position? _lastSubmittedPosition;
+  DateTime? _lastSubmittedAt;
+  DateTime? _lastSubmittedTimestamp;
   String? _latestLocationWarning;
   bool? _backgroundLocationAllowed;
+  _MovementMode _movementMode = _MovementMode.stationary;
+  _MovementMode? _candidateMovementMode;
+  int _candidateMovementModeSamples = 0;
 
   bool _isTracking = false;
   bool _isStarting = false;
@@ -38,6 +47,8 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
   bool? get backgroundLocationAllowed => _backgroundLocationAllowed;
   bool get _isAndroid =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  static const double _maximumReportedAccuracyMeters = 50;
 
   Future<void> ensureGpsReady() async {
     // Ulangi permintaan sistem sampai GPS aktif.
@@ -99,6 +110,7 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
       }
 
       _isTracking = true;
+      _initializeMovementMode(position);
 
       _publishPosition(position);
       await _sendLocation(position);
@@ -122,7 +134,13 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: 0,
-        intervalDuration: const Duration(seconds: 10),
+        intervalDuration: Duration(
+          seconds: switch (_movementMode) {
+            _MovementMode.stationary => 10,
+            _MovementMode.walking => 5,
+            _MovementMode.driving => 3,
+          },
+        ),
         foregroundNotificationConfig: const ForegroundNotificationConfig(
           notificationTitle: 'Pelacakan lokasi aktif',
           notificationText: 'Lokasi dibagikan selama Anda bertugas.',
@@ -179,6 +197,9 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
         ).listen(
           (position) {
             _publishPosition(position);
+            if (_updateMovementMode(position)) {
+              unawaited(_startPositionStream());
+            }
             unawaited(_queueLocationUpdate(position));
           },
           onError: (Object error) {
@@ -209,6 +230,7 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
       );
 
       if (!_isTracking) return;
+      _initializeMovementMode(position);
       _publishPosition(position);
       await _queueLocationUpdate(position);
       if (!_isTracking) return;
@@ -220,7 +242,28 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _sendLocation(Position position) async {
+  Future<void> _sendLocation(
+    Position position, {
+    bool markSubmission = true,
+  }) async {
+    if (!_hasAcceptableLocation(position)) {
+      debugPrint(
+        'Lokasi tidak dikirim karena koordinat atau akurasinya tidak valid.',
+      );
+      return;
+    }
+
+    if (markSubmission) {
+      final previousTimestamp = _lastSubmittedTimestamp;
+      if (previousTimestamp != null &&
+          !position.timestamp.isAfter(previousTimestamp)) {
+        debugPrint('Lokasi lama diabaikan.');
+        return;
+      }
+
+      _recordLocationSubmission(position);
+    }
+
     try {
       final result = await ApiService.sendTrackingLocation(
         latitude: position.latitude,
@@ -281,12 +324,149 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
   }
 
   Future<void> _queueLocationUpdate(Position position) {
+    if (!_shouldSubmitLocation(position)) {
+      return Future<void>.value();
+    }
+
+    _recordLocationSubmission(position);
     late final Future<void> update;
-    update = _sendLocation(position).whenComplete(() {
-      _pendingLocationUpdates.remove(update);
-    });
+    update = _locationUpdateQueue
+        .then((_) => _sendLocation(position, markSubmission: false))
+        .whenComplete(() {
+          _pendingLocationUpdates.remove(update);
+        });
+    _locationUpdateQueue = update;
     _pendingLocationUpdates.add(update);
     return update;
+  }
+
+  void _recordLocationSubmission(Position position) {
+    _lastSubmittedPosition = position;
+    _lastSubmittedAt = DateTime.now();
+    _lastSubmittedTimestamp = position.timestamp;
+  }
+
+  bool _hasAcceptableLocation(Position position) {
+    return position.latitude.isFinite &&
+        position.longitude.isFinite &&
+        position.latitude >= -90 &&
+        position.latitude <= 90 &&
+        position.longitude >= -180 &&
+        position.longitude <= 180 &&
+        position.accuracy.isFinite &&
+        position.accuracy >= 0 &&
+        position.accuracy <= _maximumReportedAccuracyMeters;
+  }
+
+  bool _shouldSubmitLocation(Position position) {
+    if (!_hasAcceptableLocation(position)) return false;
+    final previousTimestamp = _lastSubmittedTimestamp;
+    if (previousTimestamp != null &&
+        !position.timestamp.isAfter(previousTimestamp)) {
+      return false;
+    }
+
+    final previousPosition = _lastSubmittedPosition;
+    final previousSubmittedAt = _lastSubmittedAt;
+    if (previousPosition == null || previousSubmittedAt == null) return true;
+
+    final elapsed = DateTime.now().difference(previousSubmittedAt);
+    final distanceMeters = Geolocator.distanceBetween(
+      previousPosition.latitude,
+      previousPosition.longitude,
+      position.latitude,
+      position.longitude,
+    );
+    final (
+      minimumInterval,
+      minimumDistance,
+      maximumInterval,
+    ) = switch (_movementMode) {
+      _MovementMode.stationary => (
+        const Duration(seconds: 30),
+        15.0,
+        const Duration(seconds: 60),
+      ),
+      _MovementMode.walking => (
+        const Duration(seconds: 5),
+        5.0,
+        const Duration(seconds: 15),
+      ),
+      _MovementMode.driving => (
+        const Duration(seconds: 3),
+        15.0,
+        const Duration(seconds: 10),
+      ),
+    };
+
+    return elapsed >= maximumInterval ||
+        (elapsed >= minimumInterval && distanceMeters >= minimumDistance);
+  }
+
+  bool _updateMovementMode(Position position) {
+    if (!_hasAcceptableLocation(position) ||
+        !position.speed.isFinite ||
+        position.speed < 0) {
+      return false;
+    }
+
+    final speed = position.speed;
+    final detectedMode = switch (_movementMode) {
+      _MovementMode.stationary =>
+        speed >= 4
+            ? _MovementMode.driving
+            : speed >= 1
+            ? _MovementMode.walking
+            : _MovementMode.stationary,
+      _MovementMode.walking =>
+        speed >= 5
+            ? _MovementMode.driving
+            : speed < 0.5
+            ? _MovementMode.stationary
+            : _MovementMode.walking,
+      _MovementMode.driving =>
+        speed < 0.5
+            ? _MovementMode.stationary
+            : speed < 3
+            ? _MovementMode.walking
+            : _MovementMode.driving,
+    };
+
+    if (detectedMode == _movementMode) {
+      _candidateMovementMode = null;
+      _candidateMovementModeSamples = 0;
+      return false;
+    }
+
+    if (_candidateMovementMode == detectedMode) {
+      _candidateMovementModeSamples++;
+    } else {
+      _candidateMovementMode = detectedMode;
+      _candidateMovementModeSamples = 1;
+    }
+
+    if (_candidateMovementModeSamples < 2) return false;
+
+    _movementMode = detectedMode;
+    _candidateMovementMode = null;
+    _candidateMovementModeSamples = 0;
+    return true;
+  }
+
+  void _initializeMovementMode(Position position) {
+    if (!_hasAcceptableLocation(position) ||
+        !position.speed.isFinite ||
+        position.speed < 0) {
+      return;
+    }
+
+    _movementMode = position.speed >= 5
+        ? _MovementMode.driving
+        : position.speed >= 1
+        ? _MovementMode.walking
+        : _MovementMode.stationary;
+    _candidateMovementMode = null;
+    _candidateMovementModeSamples = 0;
   }
 
   Future<void> stopLocationUpdates() async {
