@@ -6,7 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import 'firebase_options.dart';
-import 'pages/agent_tracking.dart';
+// import 'pages/agent_tracking.dart';
 
 import 'package:flutter_map/flutter_map.dart' as flutter_map;
 import 'package:flutter_svg/svg.dart';
@@ -16,7 +16,7 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'pages/agent_home.dart';
 import 'pages/agent_list.dart';
 import 'pages/agent_profile_edit.dart';
-import 'pages/agent_monitoring.dart';
+// import 'pages/agent_monitoring.dart';
 import 'pages/agent_team_home.dart';
 import 'pages/kantor_list.dart';
 import 'services/api_service.dart';
@@ -302,8 +302,8 @@ class BusinessIntelligenceApp extends StatelessWidget {
       routes: {
         '/': (context) => const SessionGatePage(),
         '/home': (context) => const HomePage(),
-        '/agent-tracking': (context) => const AgentTrackingPage(),
-        '/agent-monitoring': (context) => const AgentMonitoringPage(),
+        // '/agent-tracking': (context) => const AgentTrackingPage(),
+        // '/agent-monitoring': (context) => const AgentMonitoringPage(),
         '/agent-list': (context) => const AgentListPage(),
         '/kantor-list': (context) => const KantorListPage(),
         '/kantor-active-map': (context) =>
