@@ -224,15 +224,27 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
         latestProfile = currentUser;
       } else {
         final response = await ApiService.getAgentProfiles(search: agentId);
-        final profiles = response['data'];
-        if (profiles is List) {
-          for (final profile in profiles.whereType<Map>()) {
-            final candidate = Map<String, dynamic>.from(profile);
-            if (_profileAgentId(candidate).toUpperCase() ==
-                agentId.toUpperCase()) {
-              latestProfile = candidate;
-              break;
-            }
+        final responseData = response['data'];
+        if (responseData is! Map<String, dynamic> ||
+            responseData['success'] != true) {
+          throw Exception(
+            responseData is Map
+                ? responseData['message']?.toString() ??
+                      'Gagal memuat profil agen.'
+                : 'Format respons profil agen tidak valid.',
+          );
+        }
+
+        final profiles = responseData['data'];
+        if (profiles is! List) {
+          throw Exception('Format daftar profil agen tidak valid.');
+        }
+        for (final profile in profiles.whereType<Map>()) {
+          final candidate = Map<String, dynamic>.from(profile);
+          if (_profileAgentId(candidate).toUpperCase() ==
+              agentId.toUpperCase()) {
+            latestProfile = candidate;
+            break;
           }
         }
       }
