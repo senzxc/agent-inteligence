@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart' as flutter_map;
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
@@ -11,6 +12,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_service.dart';
+import '../services/gps_tracking_service.dart';
 import '../utils/kantor_type.dart';
 import '../widgets/agent_marker.dart';
 import '../widgets/agent_profile_photo.dart';
@@ -20,6 +22,7 @@ import 'agent_task.dart';
 const _branchMapGradientColors = [Color(0xFF0D47A1), Color(0xFF1565C0)];
 const _pageStart = Color(0xFFF8FBFF);
 const _pageEnd = Color(0xFFEAF3FF);
+const _showCurrentAgentDebugMarker = true;
 const _softCardShadow = BoxShadow(
   color: Color(0x260F172A),
   blurRadius: 14,
@@ -174,13 +177,24 @@ class _AgentListPageState extends State<AgentListPage>
   late final AnimationController _centerAnimationController;
   late final AnimationController _mapAgentSheetAnimationController;
   late final AnimationController _agentMarkerAnimationController;
+  late final AnimationController _currentAgentMarkerAnimationController;
+  StreamSubscription<Position>? _currentAgentPositionSubscription;
   final Map<String, _AgentMarkerTransition> _agentMarkerTransitions = {};
+  LatLng? _currentAgentMarkerFrom;
+  LatLng? _currentAgentMarkerTarget;
+  Map<String, dynamic>? _currentAgentProfile;
+  String? _currentAgentId;
+  String? _currentAgentName;
+  bool _currentAgentIdentityResolved = false;
+  bool _didCenterMapOnCurrentAgent = false;
   LatLng? _animationStartCenter;
   LatLng? _animationTargetCenter;
   double _animationStartZoom = 15;
   double _animationTargetZoom = 16;
 
   List<Map<String, dynamic>> _agents = [];
+  List<Map<String, dynamic>> _agentProfiles = [];
+  DateTime? _agentProfilesLoadedAt;
   bool _loading = true;
   bool _isFetchingAgents = false;
   String? _error;
@@ -284,6 +298,7 @@ class _AgentListPageState extends State<AgentListPage>
     _initialized = true;
 
     final arguments = ModalRoute.of(context)?.settings.arguments;
+    _resolveCurrentAgentIdentity(arguments);
     if (arguments is Map) {
       final appRole = (arguments['APP_ROLE'] ?? '')
           .toString()
@@ -339,7 +354,7 @@ class _AgentListPageState extends State<AgentListPage>
     if ((_kantor == null || _kantor!.isEmpty) && !_isHeadMarketing) return;
     _loadAgents();
     _agentRefreshTimer = Timer.periodic(
-      const Duration(seconds: 10),
+      const Duration(seconds: 2),
       (_) => unawaited(_loadAgents(showLoading: false)),
     );
   }
@@ -356,6 +371,10 @@ class _AgentListPageState extends State<AgentListPage>
       duration: const Duration(milliseconds: 320),
       reverseDuration: const Duration(milliseconds: 240),
     );
+    _currentAgentMarkerAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    )..addListener(_onCurrentAgentMarkerAnimationTick);
     _agentMarkerAnimationController =
         AnimationController(
             vsync: this,
@@ -363,6 +382,242 @@ class _AgentListPageState extends State<AgentListPage>
           )
           ..addListener(_onAgentMarkerAnimationTick)
           ..addStatusListener(_onAgentMarkerAnimationStatusChanged);
+    if (_showCurrentAgentDebugMarker) {
+      final trackingService = AgentGpsTrackingService.instance;
+      final latestPosition = trackingService.latestPosition;
+      if (latestPosition != null) {
+        _updateCurrentAgentMarkerPosition(latestPosition);
+      }
+      _currentAgentPositionSubscription = trackingService.positions.listen(
+        _updateCurrentAgentMarkerPosition,
+      );
+    }
+  }
+
+  void _onCurrentAgentMarkerAnimationTick() {
+    if (mounted) setState(() {});
+  }
+
+  void _resolveCurrentAgentIdentity(Object? arguments) {
+    if (_currentAgentIdentityResolved) return;
+    _currentAgentIdentityResolved = true;
+
+    if (arguments is Map) {
+      final user = Map<String, dynamic>.from(arguments);
+      _setCurrentAgentIdentity(user);
+    }
+
+    if (_currentAgentId == null) {
+      unawaited(_loadCurrentAgentIdentity());
+    }
+  }
+
+  void _setCurrentAgentIdentity(Map<String, dynamic> user) {
+    final id =
+        (user['I_AGEN'] ??
+                user['NOMOR_AGEN'] ??
+                user['STAMBUK'] ??
+                user['stambuk'] ??
+                '')
+            .toString()
+            .trim();
+    if (id.isEmpty || id == '-') return;
+
+    _currentAgentId = id;
+    _currentAgentName = (user['NAMA_AGEN'] ?? user['NAMA'] ?? user['nama'])
+        ?.toString()
+        .trim();
+    _currentAgentProfile = user;
+    final trackingService = AgentGpsTrackingService.instance;
+    final latestPosition = trackingService.isTracking
+        ? trackingService.latestPosition
+        : null;
+    if (latestPosition != null) {
+      _updateCurrentAgentMarkerPosition(latestPosition);
+    }
+  }
+
+  Future<void> _loadCurrentAgentIdentity() async {
+    try {
+      final user = await ApiService.getCurrentUser();
+      if (!mounted) return;
+      _setCurrentAgentIdentity(user);
+      final profile = _currentAgentProfile;
+      final trackingService = AgentGpsTrackingService.instance;
+      final currentPosition = trackingService.isTracking
+          ? trackingService.latestPosition
+          : null;
+      if (profile != null && currentPosition == null) {
+        Map<String, dynamic>? serverAgent;
+        for (final agent in _agents) {
+          if (_agentId(agent)?.toUpperCase() ==
+              _currentAgentId?.toUpperCase()) {
+            serverAgent = agent;
+            break;
+          }
+        }
+        final coordinates = serverAgent == null
+            ? null
+            : _agentCoordinates(serverAgent);
+        if (coordinates != null) {
+          _setCurrentAgentMarkerTarget(coordinates, serverAgent!);
+        }
+      }
+    } catch (error) {
+      debugPrint(
+        'Gagal mendapatkan identitas agen untuk marker sementara: $error',
+      );
+    }
+  }
+
+  String? _agentId(Map<String, dynamic> agent) {
+    final id =
+        (agent['NOMOR_AGEN'] ??
+                agent['I_AGEN'] ??
+                agent['STAMBUK'] ??
+                agent['stambuk'])
+            ?.toString()
+            .trim();
+    return id == null || id.isEmpty ? null : id;
+  }
+
+  void _updateCurrentAgentMarkerPosition(Position position) {
+    if (!_showCurrentAgentDebugMarker ||
+        !AgentGpsTrackingService.instance.isTracking ||
+        _currentAgentId == null ||
+        !_isValidCurrentAgentPosition(position)) {
+      return;
+    }
+    _setCurrentAgentMarkerTarget(
+      LatLng(position.latitude, position.longitude),
+      {
+        ...?_currentAgentProfile,
+        'NOMOR_AGEN': _currentAgentId,
+        'NAMA_AGEN': _currentAgentName ?? 'Agen saya',
+        'isTracking': true,
+        'accuracy': position.accuracy,
+        'speed': position.speed,
+        'lastUpdated': position.timestamp.toIso8601String(),
+      },
+    );
+  }
+
+  bool _isValidCurrentAgentPosition(Position position) =>
+      position.latitude.isFinite &&
+      position.longitude.isFinite &&
+      position.latitude >= -90 &&
+      position.latitude <= 90 &&
+      position.longitude >= -180 &&
+      position.longitude <= 180 &&
+      position.accuracy.isFinite &&
+      position.accuracy >= 0 &&
+      position.accuracy <= 50;
+
+  void _setCurrentAgentMarkerTarget(
+    LatLng target,
+    Map<String, dynamic> profile,
+  ) {
+    final previousProfile = _currentAgentProfile;
+    _currentAgentProfile = profile;
+    _currentAgentName ??=
+        (profile['NAMA_AGEN'] ?? profile['NAMA'] ?? profile['nama'])
+            ?.toString()
+            .trim();
+    final previousTarget = _currentAgentMarkerTarget;
+    if (previousTarget == null) {
+      _currentAgentMarkerFrom = target;
+      _currentAgentMarkerTarget = target;
+      _centerMapOnCurrentAgentOnce();
+      if (mounted) setState(() {});
+      return;
+    }
+    if (previousTarget.latitude == target.latitude &&
+        previousTarget.longitude == target.longitude) {
+      if (mounted && previousProfile?['isTracking'] != profile['isTracking']) {
+        setState(() {});
+      }
+      return;
+    }
+
+    final progress = Curves.easeInOutCubic.transform(
+      _currentAgentMarkerAnimationController.value,
+    );
+    final from = LatLng(
+      _currentAgentMarkerFrom!.latitude +
+          (previousTarget.latitude - _currentAgentMarkerFrom!.latitude) *
+              progress,
+      _currentAgentMarkerFrom!.longitude +
+          (previousTarget.longitude - _currentAgentMarkerFrom!.longitude) *
+              progress,
+    );
+    _currentAgentMarkerFrom = from;
+    _currentAgentMarkerTarget = target;
+    _currentAgentMarkerAnimationController.forward(from: 0);
+  }
+
+  void _centerMapOnCurrentAgentOnce() {
+    final target = _currentAgentMarkerTarget;
+    if (!_showCurrentAgentDebugMarker ||
+        _didCenterMapOnCurrentAgent ||
+        !_mapReady ||
+        target == null) {
+      return;
+    }
+
+    _didCenterMapOnCurrentAgent = true;
+    _animationStartCenter = _mapController.camera.center;
+    _animationTargetCenter = target;
+    _animationStartZoom = _mapController.camera.zoom;
+    _animationTargetZoom = 16;
+    _centerAnimationController.forward(from: 0);
+  }
+
+  flutter_map.Marker? _currentAgentMarker() {
+    if (!_showCurrentAgentDebugMarker ||
+        _currentAgentId == null ||
+        _currentAgentMarkerFrom == null ||
+        _currentAgentMarkerTarget == null) {
+      return null;
+    }
+
+    final isOnline =
+        _currentAgentProfile?['isTracking'] == true ||
+        _currentAgentProfile?['isTracking']?.toString() == '1';
+    if (_selectedAgentStatus == _AgentStatusFilter.online && !isOnline ||
+        _selectedAgentStatus == _AgentStatusFilter.offline && isOnline) {
+      return null;
+    }
+
+    final progress = Curves.easeInOutCubic.transform(
+      _currentAgentMarkerAnimationController.value,
+    );
+    final from = _currentAgentMarkerFrom!;
+    final target = _currentAgentMarkerTarget!;
+    final location = LatLng(
+      from.latitude + (target.latitude - from.latitude) * progress,
+      from.longitude + (target.longitude - from.longitude) * progress,
+    );
+    final name = _currentAgentName ?? 'Agen saya';
+
+    return flutter_map.Marker(
+      point: location,
+      width: 200,
+      height: 100,
+      child: _buildMapMarkerWithLabel(
+        identity: _currentAgentId,
+        label: 'SAYA - $name',
+        preferredPosition: _MapLabelPosition.above,
+        marker: Transform.scale(
+          scale: 1.15,
+          child: AgentMarker(
+            name: 'Saya',
+            identity: _currentAgentId,
+            isOnline: isOnline,
+            offlineColor: const Color(0xFF64748B),
+          ),
+        ),
+      ),
+    );
   }
 
   void _onAgentMarkerAnimationTick() {
@@ -393,6 +648,16 @@ class _AgentListPageState extends State<AgentListPage>
           .toString()
           .trim();
       if (id.isEmpty) continue;
+      if (_showCurrentAgentDebugMarker &&
+          _currentAgentId != null &&
+          id.toUpperCase() == _currentAgentId!.toUpperCase()) {
+        final trackingService = AgentGpsTrackingService.instance;
+        if (!trackingService.isTracking ||
+            trackingService.latestPosition == null) {
+          _setCurrentAgentMarkerTarget(location, agent);
+        }
+        continue;
+      }
       targets[id] = MapEntry(agent, location);
     }
 
@@ -402,6 +667,21 @@ class _AgentListPageState extends State<AgentListPage>
     for (final key in keys) {
       final existing = _agentMarkerTransitions[key];
       final target = targets[key];
+      if (existing != null &&
+          target != null &&
+          existing.toScale == 1 &&
+          existing.to.latitude == target.value.latitude &&
+          existing.to.longitude == target.value.longitude) {
+        next[key] = _AgentMarkerTransition(
+          agent: target.key,
+          from: existing.from,
+          to: existing.to,
+          fromScale: existing.fromScale,
+          toScale: existing.toScale,
+        );
+        continue;
+      }
+
       final currentPoint = existing == null
           ? target!.value
           : LatLng(
@@ -542,7 +822,11 @@ class _AgentListPageState extends State<AgentListPage>
 
   void _onMapReady() {
     _mapReady = true;
-    _recenterMap();
+    if (_showCurrentAgentDebugMarker && _currentAgentMarkerTarget != null) {
+      _centerMapOnCurrentAgentOnce();
+    } else {
+      _recenterMap();
+    }
   }
 
   Future<void> _geocodeOfficeAddress() async {
@@ -608,6 +892,12 @@ class _AgentListPageState extends State<AgentListPage>
     return _agentMarkerTransitions.entries
         .where((entry) {
           final agent = entry.value.agent;
+          final agentId = _agentId(agent);
+          if (_showCurrentAgentDebugMarker &&
+              _currentAgentId != null &&
+              agentId?.toUpperCase() == _currentAgentId!.toUpperCase()) {
+            return false;
+          }
           final isOnline =
               agent['isTracking'] == true ||
               agent['isTracking']?.toString() == '1';
@@ -656,6 +946,11 @@ class _AgentListPageState extends State<AgentListPage>
           );
         })
         .toList();
+  }
+
+  List<flutter_map.Marker> _currentAgentMarkers() {
+    final marker = _currentAgentMarker();
+    return marker == null ? const [] : [marker];
   }
 
   Widget _buildMapMarkerWithLabel({
@@ -2502,27 +2797,42 @@ class _AgentListPageState extends State<AgentListPage>
     }
 
     try {
-      final results = await Future.wait([
-        ApiService.getAgentList(kantor: _kantor),
-        ApiService.getAgents(),
-      ]);
-      final profileData = results[0]['data'];
+      final shouldRefreshProfiles =
+          showLoading ||
+          _agentProfilesLoadedAt == null ||
+          DateTime.now().difference(_agentProfilesLoadedAt!) >=
+              const Duration(minutes: 1);
+      final trackingFuture = ApiService.getAgents();
+      final profileFuture = shouldRefreshProfiles
+          ? ApiService.getAgentList(kantor: _kantor)
+          : null;
+      final trackingResult = await trackingFuture;
+      final profileResult = profileFuture == null ? null : await profileFuture;
 
-      if (profileData is! Map || profileData['success'] != true) {
-        throw Exception(
-          profileData is Map
-              ? profileData['message']?.toString() ??
-                    'Gagal memuat daftar agen.'
-              : 'Format respons server tidak valid.',
-        );
+      if (profileResult != null) {
+        final profileData = profileResult['data'];
+        if (profileData is! Map || profileData['success'] != true) {
+          throw Exception(
+            profileData is Map
+                ? profileData['message']?.toString() ??
+                      'Gagal memuat daftar agen.'
+                : 'Format respons server tidak valid.',
+          );
+        }
+
+        final rawProfiles = profileData['data'];
+        if (rawProfiles is! List) {
+          throw Exception('Data agen dari server tidak valid.');
+        }
+        _agentProfiles = rawProfiles
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+        _agentProfilesLoadedAt = DateTime.now();
       }
 
-      final profileRows = profileData['data'];
-      if (profileRows is! List) {
-        throw Exception('Data agen dari server tidak valid.');
-      }
-
-      final trackingData = results[1]['data'];
+      final profileRows = _agentProfiles;
+      final trackingData = trackingResult['data'];
       if (trackingData is! Map || trackingData['success'] != true) {
         throw Exception(
           trackingData is Map
@@ -2950,11 +3260,13 @@ class _AgentListPageState extends State<AgentListPage>
   @override
   void dispose() {
     _agentRefreshTimer?.cancel();
+    unawaited(_currentAgentPositionSubscription?.cancel());
     _agentSearchController.dispose();
     _pageScrollController.dispose();
     _centerAnimationController.dispose();
     _mapAgentSheetAnimationController.dispose();
     _agentMarkerAnimationController.dispose();
+    _currentAgentMarkerAnimationController.dispose();
     _mapAgentSheetController.dispose();
     _mapController.dispose();
     super.dispose();
@@ -3107,6 +3419,7 @@ class _AgentListPageState extends State<AgentListPage>
                               ),
                             ),
                           ..._agentMarkers(),
+                          ..._currentAgentMarkers(),
                         ],
                       ),
                       if (_showIndonesiaMapButton)
