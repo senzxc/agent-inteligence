@@ -40,7 +40,7 @@ class _AgentMonitoringPageState extends State<AgentMonitoringPage>
     Color(0xFFDC2626), // Merah
     Color(0xFF4F46E5), // Indigo
     Color(0xFFCA8A04), // Kuning gelap
-    Color(0xFF64748B), // Abu-abu kebiruan
+    Color(0xFFC026D3), // Magenta
     Color(0xFF7C3AED), // Violet
     Color(0xFF0891B2), // Cyan
   ];
