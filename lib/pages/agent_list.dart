@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_service.dart';
 import '../services/gps_tracking_service.dart';
+import '../utils/agency_role.dart';
 import '../utils/kantor_type.dart';
 import '../widgets/agent_marker.dart';
 import '../widgets/agent_profile_photo.dart';
@@ -1031,7 +1032,9 @@ class _AgentListPageState extends State<AgentListPage>
   }) {
     final name = (agent['NAMA_AGEN'] ?? '-').toString().trim();
     final agentNumber = (agent['NOMOR_AGEN'] ?? '-').toString().trim();
-    final role = (agent['C_AGENCY_JABATAN'] ?? '-').toString().trim();
+    final role = formatAgencyRole(
+      (agent['C_AGENCY_JABATAN'] ?? '-').toString(),
+    );
     final office = (agent['NAMA_KANTOR'] ?? agent['KODE_KANTOR'] ?? '-')
         .toString()
         .trim();
@@ -1921,9 +1924,9 @@ class _AgentListPageState extends State<AgentListPage>
         .toString()
         .trim();
     final phone = (agent['NOMOR_HP'] ?? 'Belum tersedia').toString().trim();
-    final jabatan = (agent['C_AGENCY_JABATAN'] ?? 'Belum tersedia')
-        .toString()
-        .trim();
+    final jabatan = formatAgencyRole(
+      (agent['C_AGENCY_JABATAN'] ?? 'Belum tersedia').toString(),
+    );
     final tanggalLahir = (agent['TANGGAL_LAHIR'] ?? 'Belum tersedia')
         .toString()
         .trim();
