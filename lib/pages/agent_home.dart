@@ -32,6 +32,56 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
   String? _loadedPhotoAgentId;
   bool _isLoading = true;
   String? _errorMessage;
+  final ScrollController _dashboardScrollController = ScrollController();
+  final GlobalKey _dashboardScrollViewportKey = GlobalKey();
+  final GlobalKey _viewAllTasksButtonKey = GlobalKey();
+  bool _isViewAllTasksButtonSticky = false;
+  bool _isViewAllTasksButtonUpdateScheduled = false;
+
+  void _scheduleViewAllTasksButtonUpdate() {
+    if (_isViewAllTasksButtonUpdateScheduled) return;
+    _isViewAllTasksButtonUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _isViewAllTasksButtonUpdateScheduled = false;
+      if (!mounted) return;
+
+      final buttonRenderObject = _viewAllTasksButtonKey.currentContext
+          ?.findRenderObject();
+      final viewportRenderObject = _dashboardScrollViewportKey.currentContext
+          ?.findRenderObject();
+      var isSticky = false;
+      if (buttonRenderObject is RenderBox &&
+          buttonRenderObject.hasSize &&
+          viewportRenderObject is RenderBox &&
+          viewportRenderObject.hasSize) {
+        final buttonBottom = buttonRenderObject
+            .localToGlobal(Offset(0, buttonRenderObject.size.height))
+            .dy;
+        final viewportBottom = viewportRenderObject
+            .localToGlobal(Offset(0, viewportRenderObject.size.height))
+            .dy;
+        isSticky = buttonBottom > viewportBottom;
+      }
+
+      if (_isViewAllTasksButtonSticky != isSticky) {
+        setState(() => _isViewAllTasksButtonSticky = isSticky);
+      }
+    });
+  }
+
+  Widget _withStickyButtonShadow(Widget button) => Container(
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(14),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x330F172A),
+          blurRadius: 16,
+          offset: Offset(0, 6),
+        ),
+      ],
+    ),
+    child: button,
+  );
 
   String _firstValue(List<String> keys, {String fallback = '-'}) {
     for (final key in keys) {
@@ -64,6 +114,7 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
   @override
   void initState() {
     super.initState();
+    _dashboardScrollController.addListener(_scheduleViewAllTasksButtonUpdate);
     _loadTasks();
     _loadProfilePhoto();
   }
@@ -103,6 +154,7 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
 
   @override
   void dispose() {
+    _dashboardScrollController.dispose();
     dashboardRouteObserver.unsubscribe(this);
     super.dispose();
   }
@@ -863,6 +915,23 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
 
   @override
   Widget build(BuildContext context) {
+    final allTasksButton = OutlinedButton.icon(
+      onPressed: _openAllTasks,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _primary,
+        backgroundColor: Colors.white,
+        minimumSize: const Size(double.infinity, 50),
+        side: const BorderSide(color: Color(0xFFBBD5F5)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      icon: const Icon(Icons.list_alt_rounded),
+      label: const Text(
+        'Lihat Semua Tugas',
+        style: TextStyle(fontWeight: FontWeight.w700),
+      ),
+    );
+    _scheduleViewAllTasksButtonUpdate();
+
     return Scaffold(
       backgroundColor: _pageEnd,
       appBar: AppBar(
@@ -886,53 +955,63 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
           const SizedBox(width: 6),
         ],
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [_pageStart, _pageEnd],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: RefreshIndicator(
-          onRefresh: _loadTasks,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
-            children: [
-              _buildWelcomeCard(),
-              const SizedBox(height: 20),
-              // _buildSectionTitle(
-              //   'Ringkasan Tugas',
-              //   'Pantau progres tugasmu',
-              // ),
-              // const SizedBox(height: 12),
-              _buildSummary(),
-              // const SizedBox(height: 26),
-              _buildTaskHeader(),
-              const SizedBox(height: 12),
-              _buildTaskContent(),
-              const SizedBox(height: 14),
-              OutlinedButton.icon(
-                onPressed: _openAllTasks,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _primary,
-                  backgroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 50),
-                  side: const BorderSide(color: Color(0xFFBBD5F5)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+      body: Stack(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_pageStart, _pageEnd],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+            child: RefreshIndicator(
+              onRefresh: _loadTasks,
+              child: ListView(
+                controller: _dashboardScrollController,
+                key: _dashboardScrollViewportKey,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
+                children: [
+                  _buildWelcomeCard(),
+                  const SizedBox(height: 20),
+                  // _buildSectionTitle(
+                  //   'Ringkasan Tugas',
+                  //   'Pantau progres tugasmu',
+                  // ),
+                  // const SizedBox(height: 12),
+                  _buildSummary(),
+                  // const SizedBox(height: 26),
+                  _buildTaskHeader(),
+                  const SizedBox(height: 12),
+                  _buildTaskContent(),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    key: _viewAllTasksButtonKey,
+                    width: double.infinity,
+                    height: 50,
+                    child: _isViewAllTasksButtonSticky
+                        ? const SizedBox.shrink()
+                        : allTasksButton,
                   ),
-                ),
-                icon: const Icon(Icons.list_alt_rounded),
-                label: const Text(
-                  'Lihat Semua Tugas',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+                ],
+              ),
+            ),
+          ),
+          if (_isViewAllTasksButtonSticky)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 0,
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _withStickyButtonShadow(allTasksButton),
                 ),
               ),
-            ],
-          ),
-        ),
+            ),
+        ],
       ),
     );
   }

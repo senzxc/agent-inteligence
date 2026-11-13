@@ -880,6 +880,17 @@ class _HomePageState extends State<HomePage> with RouteAware {
   Map<String, dynamic>? _dashboardUser;
   Uint8List? _profilePhotoBytes;
   String? _loadedPhotoAgentId;
+  final ScrollController _dashboardScrollController = ScrollController();
+  final GlobalKey _dashboardScrollViewportKey = GlobalKey();
+  final GlobalKey _viewAllButtonsSlotKey = GlobalKey();
+  bool _areViewAllButtonsSticky = false;
+  bool _isViewAllButtonsUpdateScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _dashboardScrollController.addListener(_scheduleViewAllButtonsUpdate);
+  }
 
   @override
   void didChangeDependencies() {
@@ -983,6 +994,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
 
   @override
   void dispose() {
+    _dashboardScrollController.dispose();
     dashboardRouteObserver.unsubscribe(this);
     super.dispose();
   }
@@ -1191,6 +1203,51 @@ class _HomePageState extends State<HomePage> with RouteAware {
     Navigator.pushNamed(context, '/agent-list', arguments: arguments);
   }
 
+  void _scheduleViewAllButtonsUpdate() {
+    if (_isViewAllButtonsUpdateScheduled) return;
+    _isViewAllButtonsUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _isViewAllButtonsUpdateScheduled = false;
+      if (!mounted) return;
+
+      final buttonRenderObject = _viewAllButtonsSlotKey.currentContext
+          ?.findRenderObject();
+      final viewportRenderObject = _dashboardScrollViewportKey.currentContext
+          ?.findRenderObject();
+      var isSticky = false;
+      if (buttonRenderObject is RenderBox &&
+          buttonRenderObject.hasSize &&
+          viewportRenderObject is RenderBox &&
+          viewportRenderObject.hasSize) {
+        final buttonBottom = buttonRenderObject
+            .localToGlobal(Offset(0, buttonRenderObject.size.height))
+            .dy;
+        final viewportBottom = viewportRenderObject
+            .localToGlobal(Offset(0, viewportRenderObject.size.height))
+            .dy;
+        isSticky = buttonBottom > viewportBottom;
+      }
+
+      if (_areViewAllButtonsSticky != isSticky) {
+        setState(() => _areViewAllButtonsSticky = isSticky);
+      }
+    });
+  }
+
+  Widget _withStickyButtonShadow(Widget button) => Container(
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(14),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x330F172A),
+          blurRadius: 16,
+          offset: Offset(0, 6),
+        ),
+      ],
+    ),
+    child: button,
+  );
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1288,6 +1345,57 @@ class _HomePageState extends State<HomePage> with RouteAware {
       );
     }).toList();
     final previewCabangList = cabangList.take(5).toList();
+    final allBranchesButton = material.OutlinedButton.icon(
+      onPressed: () {
+        Navigator.pushNamed(context, '/kantor-list', arguments: user);
+      },
+      style: material.OutlinedButton.styleFrom(
+        foregroundColor: const material.Color(0xFF1565C0),
+        backgroundColor: material.Colors.white,
+        minimumSize: const material.Size(0, 50),
+        padding: const material.EdgeInsets.symmetric(horizontal: 6),
+        side: const material.BorderSide(color: material.Color(0xFFBBD5F5)),
+        shape: material.RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
+      icon: const material.Icon(material.Icons.storefront_rounded, size: 18),
+      label: const Text(
+        'Lihat Seluruh Cabang',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+      ),
+    );
+    final allAgentsButton = material.OutlinedButton.icon(
+      onPressed: () => _openAgentList(
+        user: user,
+        appRole: appRole,
+        statusFilter: 'all',
+        viewAllBranches: appRole == 'HEAD_MARKETING',
+        showIndonesiaMapButton: true,
+      ),
+      style: material.OutlinedButton.styleFrom(
+        foregroundColor: const material.Color(0xFF1565C0),
+        backgroundColor: material.Colors.white,
+        minimumSize: const material.Size(0, 50),
+        padding: const material.EdgeInsets.symmetric(horizontal: 6),
+        side: const material.BorderSide(color: material.Color(0xFFBBD5F5)),
+        shape: material.RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
+      icon: const material.Icon(material.Icons.groups_rounded, size: 18),
+      label: const Text(
+        'Lihat Seluruh Agen',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+      ),
+    );
+    _scheduleViewAllButtonsUpdate();
 
     return Scaffold(
       backgroundColor: const Color(0xFFEAF3FF),
@@ -1326,9 +1434,29 @@ class _HomePageState extends State<HomePage> with RouteAware {
           ],
         ),
       ],
+      footers: [
+        if (_areViewAllButtonsSticky)
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Row(
+                children: [
+                  Expanded(child: _withStickyButtonShadow(allBranchesButton)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _withStickyButtonShadow(allAgentsButton)),
+                ],
+              ),
+            ),
+          ),
+      ],
+      floatingFooter: true,
+      footerBackgroundColor: Colors.transparent,
       child: DecoratedBox(
         decoration: const BoxDecoration(gradient: _pageBackgroundGradient),
         child: SingleChildScrollView(
+          controller: _dashboardScrollController,
+          key: _dashboardScrollViewportKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1794,32 +1922,19 @@ class _HomePageState extends State<HomePage> with RouteAware {
               if (!_isLoadingKantor)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                  child: material.OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.pushNamed(
-                        context,
-                        '/kantor-list',
-                        arguments: user,
-                      );
-                    },
-                    style: material.OutlinedButton.styleFrom(
-                      foregroundColor: const material.Color(0xFF1565C0),
-                      backgroundColor: material.Colors.white,
-                      minimumSize: const material.Size(double.infinity, 50),
-                      side: const material.BorderSide(
-                        color: material.Color(0xFFBBD5F5),
-                      ),
-                      shape: material.RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    icon: const material.Icon(
-                      material.Icons.storefront_rounded,
-                    ),
-                    label: const Text(
-                      'Lihat Seluruh Cabang',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
+                  child: SizedBox(
+                    key: _viewAllButtonsSlotKey,
+                    width: double.infinity,
+                    height: 50,
+                    child: _areViewAllButtonsSticky
+                        ? const SizedBox.shrink()
+                        : Row(
+                            children: [
+                              Expanded(child: allBranchesButton),
+                              const SizedBox(width: 10),
+                              Expanded(child: allAgentsButton),
+                            ],
+                          ),
                   ),
                 ),
             ],
