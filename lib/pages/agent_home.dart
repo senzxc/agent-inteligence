@@ -1038,21 +1038,55 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(
-                  Icons.assignment_turned_in_outlined,
-                  color: Colors.white,
-                  size: 19,
+                const Expanded(
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.assignment_turned_in_outlined,
+                        color: Colors.white,
+                        size: 19,
+                      ),
+                      SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          'Tugas belum selesai',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                SizedBox(width: 9),
-                Expanded(
+                const SizedBox(width: 12),
+                Container(
+                  constraints: const BoxConstraints(minWidth: 42),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                   child: Text(
-                    'Kelola dan selesaikan tugasmu',
-                    style: TextStyle(
+                    _isLoading
+                        ? '…'
+                        : _errorMessage == null
+                        ? '${_unfinishedTasks.length}'
+                        : '—',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 18,
+                      height: 1,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
