@@ -47,6 +47,56 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
   String? _loadedPhotoAgentId;
   bool _isLoadingMyTasks = true;
   String? _myTasksError;
+  final ScrollController _dashboardScrollController = ScrollController();
+  final GlobalKey _dashboardScrollViewportKey = GlobalKey();
+  final GlobalKey _viewAllAgentsButtonKey = GlobalKey();
+  bool _isViewAllAgentsButtonSticky = false;
+  bool _isViewAllAgentsButtonUpdateScheduled = false;
+
+  void _scheduleViewAllAgentsButtonUpdate() {
+    if (_isViewAllAgentsButtonUpdateScheduled) return;
+    _isViewAllAgentsButtonUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _isViewAllAgentsButtonUpdateScheduled = false;
+      if (!mounted) return;
+
+      final buttonRenderObject = _viewAllAgentsButtonKey.currentContext
+          ?.findRenderObject();
+      final viewportRenderObject = _dashboardScrollViewportKey.currentContext
+          ?.findRenderObject();
+      var isSticky = false;
+      if (buttonRenderObject is RenderBox &&
+          buttonRenderObject.hasSize &&
+          viewportRenderObject is RenderBox &&
+          viewportRenderObject.hasSize) {
+        final buttonBottom = buttonRenderObject
+            .localToGlobal(Offset(0, buttonRenderObject.size.height))
+            .dy;
+        final viewportBottom = viewportRenderObject
+            .localToGlobal(Offset(0, viewportRenderObject.size.height))
+            .dy;
+        isSticky = buttonBottom > viewportBottom;
+      }
+
+      if (_isViewAllAgentsButtonSticky != isSticky) {
+        setState(() => _isViewAllAgentsButtonSticky = isSticky);
+      }
+    });
+  }
+
+  Widget _withStickyButtonShadow(Widget button) => Container(
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(14),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x330F172A),
+          blurRadius: 16,
+          offset: Offset(0, 6),
+        ),
+      ],
+    ),
+    child: button,
+  );
 
   String get _agencyRole =>
       (widget.user['C_AGENCY_JABATAN'] ?? '').toString().trim().toUpperCase();
@@ -90,6 +140,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
   @override
   void initState() {
     super.initState();
+    _dashboardScrollController.addListener(_scheduleViewAllAgentsButtonUpdate);
     _loadAgents();
     _loadMyTasks();
     _loadProfilePhoto();
@@ -131,6 +182,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
 
   @override
   void dispose() {
+    _dashboardScrollController.dispose();
     dashboardRouteObserver.unsubscribe(this);
     super.dispose();
   }
@@ -831,104 +883,157 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
         .toString()
         .trim();
     final status = _myTaskStatus(task);
-    final (statusColor, statusBackground, _) = _myTaskStatusStyle(status);
+    final Color statusColor;
+    final Color statusBackground;
+    final IconData statusIcon;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _showMyTaskDetails(task),
-          borderRadius: BorderRadius.circular(16),
-          child: Ink(
-            padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFDCE8F5)),
+    switch (status) {
+      case 'Berjalan':
+        statusColor = const Color(0xFFC2410C);
+        statusBackground = const Color(0xFFFFF7ED);
+        statusIcon = Icons.autorenew_rounded;
+        break;
+      case 'Selesai':
+        statusColor = const Color(0xFF15803D);
+        statusBackground = const Color(0xFFF0FDF4);
+        statusIcon = Icons.check_circle_outline_rounded;
+        break;
+      default:
+        statusColor = _primary;
+        statusBackground = const Color(0xFFEAF3FF);
+        statusIcon = Icons.radio_button_unchecked_rounded;
+    }
+
+    return GestureDetector(
+      onTap: () => _showMyTaskDetails(task),
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(19),
+          border: Border.all(color: const Color(0xFFDCE8F5)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0C0D47A1),
+              blurRadius: 14,
+              offset: Offset(0, 5),
             ),
-            child: Column(
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.assignment_outlined,
-                      color: _primary,
-                      size: 21,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _ink,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusBackground,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        status,
-                        style: TextStyle(
-                          color: statusColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEAF3FF),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: const Icon(
+                    Icons.assignment_rounded,
+                    color: _primary,
+                    size: 22,
+                  ),
                 ),
-                if (description.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _muted,
-                      fontSize: 13,
-                      height: 1.4,
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: _ink,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 7),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusBackground,
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(statusIcon, size: 13, color: statusColor),
+                              const SizedBox(width: 5),
+                              Text(
+                                status,
+                                style: TextStyle(
+                                  color: statusColor,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    const Icon(Icons.event_outlined, color: _primary, size: 16),
-                    const SizedBox(width: 6),
-                    Text(
-                      _myTaskDeadline(task),
-                      style: const TextStyle(
-                        color: _muted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      color: _muted,
-                      size: 18,
-                    ),
-                  ],
                 ),
               ],
             ),
-          ),
+            if (description.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                description,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _muted,
+                  fontSize: 12,
+                  height: 1.5,
+                ),
+              ),
+            ],
+            const SizedBox(height: 13),
+            const Divider(height: 1, color: Color(0xFFE8EEF6)),
+            const SizedBox(height: 11),
+            Row(
+              children: [
+                const Icon(
+                  Icons.calendar_month_outlined,
+                  size: 16,
+                  color: _muted,
+                ),
+                const SizedBox(width: 7),
+                const Text(
+                  'Tenggat',
+                  style: TextStyle(color: _muted, fontSize: 11),
+                ),
+                const Spacer(),
+                Flexible(
+                  child: Text(
+                    _myTaskDeadline(task),
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      color: _ink,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -1907,6 +2012,23 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
 
   @override
   Widget build(BuildContext context) {
+    final allAgentsButton = OutlinedButton.icon(
+      onPressed: _openAgentMap,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _primary,
+        backgroundColor: Colors.white,
+        minimumSize: const Size(double.infinity, 50),
+        side: const BorderSide(color: Color(0xFFBBD5F5)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      icon: const Icon(Icons.groups_rounded),
+      label: const Text(
+        'Lihat Seluruh Agen',
+        style: TextStyle(fontWeight: FontWeight.w700),
+      ),
+    );
+    _scheduleViewAllAgentsButtonUpdate();
+
     return Scaffold(
       backgroundColor: _pageEnd,
       appBar: AppBar(
@@ -1927,329 +2049,349 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
           ),
         ],
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [_pageStart, _pageEnd],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: RefreshIndicator(
-          onRefresh: _refreshDashboard,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 20, 18, 28),
-            children: [
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(top: 8),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF0D47A1), _primary],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(22),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x260D47A1),
-                      blurRadius: 16,
-                      offset: Offset(0, 7),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        AgentProfileAvatar(
-                          photoBytes: _profilePhotoBytes,
-                          size: 48,
-                          borderRadius: 15,
-                          placeholder: const Icon(
-                            Icons.person_outline_rounded,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                        ),
-                        const SizedBox(width: 13),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Selamat datang,',
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.8),
-                                  fontSize: 13,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                _displayName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 19,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_agentId != '-')
-                          Material(
-                            color: Colors.white.withValues(alpha: 0.16),
-                            shape: const CircleBorder(
-                              side: BorderSide(color: Color(0x55FFFFFF)),
-                            ),
-                            child: IconButton(
-                              tooltip: 'Edit profil',
-                              visualDensity: VisualDensity.compact,
-                              constraints: const BoxConstraints.tightFor(
-                                width: 38,
-                                height: 38,
-                              ),
-                              padding: EdgeInsets.zero,
-                              onPressed: _editProfile,
-                              icon: const Icon(
-                                Icons.edit_outlined,
-                                color: Colors.white,
-                                size: 19,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    _HeaderInfoRow(
-                      icon: Icons.badge_outlined,
-                      label: 'ID: $_agentId',
-                    ),
-                    const SizedBox(height: 9),
-                    _HeaderInfoRow(
-                      icon: Icons.business_outlined,
-                      label:
-                          'Kantor: ${_officeName.isEmpty ? (_officeCode.isEmpty ? '-' : _officeCode) : _officeName}',
-                    ),
-                    const SizedBox(height: 9),
-                    _HeaderInfoRow(
-                      icon: Icons.work_outline,
-                      label: 'Jabatan: ${formatAgencyRole(_agencyRole)}',
-                    ),
-                  ],
-                ),
+      body: Stack(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_pageStart, _pageEnd],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
               ),
-              const SizedBox(height: 14),
-              Row(
+            ),
+            child: RefreshIndicator(
+              onRefresh: _refreshDashboard,
+              child: ListView(
+                controller: _dashboardScrollController,
+                key: _dashboardScrollViewportKey,
+                padding: const EdgeInsets.fromLTRB(18, 20, 18, 28),
                 children: [
-                  Expanded(
-                    child: _AgentMetricCard(
-                      label: 'Online',
-                      value: _onlineAgentCount?.toString() ?? '—',
-                      icon: Icons.wifi_rounded,
-                      color: const Color(0xFF16A34A),
-                      onTap: () => _openAgentList('online'),
-                    ),
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: _AgentMetricCard(
-                      label: 'Offline',
-                      value: _offlineAgentCount?.toString() ?? '—',
-                      icon: Icons.wifi_off_rounded,
-                      color: const Color(0xFF64748B),
-                      onTap: () => _openAgentList('offline'),
-                    ),
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: _AgentMetricCard(
-                      label: 'Total agen',
-                      value: _totalAgentCount?.toString() ?? '—',
-                      icon: Icons.groups_rounded,
-                      color: _primary,
-                      onTap: () => _openAgentList('all'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Material(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                child: InkWell(
-                  onTap: _openMyTasks,
-                  borderRadius: BorderRadius.circular(16),
-                  child: Ink(
-                    padding: const EdgeInsets.all(15),
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFDCE8F5)),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF0D47A1), _primary],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(22),
                       boxShadow: const [
                         BoxShadow(
-                          color: Color(0x0D172033),
-                          blurRadius: 12,
-                          offset: Offset(0, 4),
+                          color: Color(0x260D47A1),
+                          blurRadius: 16,
+                          offset: Offset(0, 7),
                         ),
                       ],
                     ),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEAF3FF),
-                            borderRadius: BorderRadius.circular(13),
-                          ),
-                          child: const Icon(
-                            Icons.checklist_rounded,
-                            color: _primary,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Tugas Saya',
-                                style: TextStyle(
-                                  color: _ink,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
+                        Row(
+                          children: [
+                            AgentProfileAvatar(
+                              photoBytes: _profilePhotoBytes,
+                              size: 48,
+                              borderRadius: 15,
+                              placeholder: const Icon(
+                                Icons.person_outline_rounded,
+                                color: Colors.white,
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(width: 13),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Selamat datang,',
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.8,
+                                      ),
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    _displayName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (_agentId != '-')
+                              Material(
+                                color: Colors.white.withValues(alpha: 0.16),
+                                shape: const CircleBorder(
+                                  side: BorderSide(color: Color(0x55FFFFFF)),
+                                ),
+                                child: IconButton(
+                                  tooltip: 'Edit profil',
+                                  visualDensity: VisualDensity.compact,
+                                  constraints: const BoxConstraints.tightFor(
+                                    width: 38,
+                                    height: 38,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  onPressed: _editProfile,
+                                  icon: const Icon(
+                                    Icons.edit_outlined,
+                                    color: Colors.white,
+                                    size: 19,
+                                  ),
                                 ),
                               ),
-                              SizedBox(height: 3),
-                              Text(
-                                'Buat dan kelola tugas pribadi',
-                                style: TextStyle(color: _muted, fontSize: 12),
-                              ),
-                            ],
-                          ),
+                          ],
                         ),
-                        const Icon(Icons.chevron_right_rounded, color: _muted),
+                        const SizedBox(height: 18),
+                        _HeaderInfoRow(
+                          icon: Icons.badge_outlined,
+                          label: 'ID: $_agentId',
+                        ),
+                        const SizedBox(height: 9),
+                        _HeaderInfoRow(
+                          icon: Icons.business_outlined,
+                          label:
+                              'Kantor: ${_officeName.isEmpty ? (_officeCode.isEmpty ? '-' : _officeCode) : _officeName}',
+                        ),
+                        const SizedBox(height: 9),
+                        _HeaderInfoRow(
+                          icon: Icons.work_outline,
+                          label: 'Jabatan: ${formatAgencyRole(_agencyRole)}',
+                        ),
                       ],
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Daftar Tugas Saya',
-                      style: TextStyle(
-                        color: _ink,
-                        fontSize: 21,
-                        fontWeight: FontWeight.w800,
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _AgentMetricCard(
+                          label: 'Online',
+                          value: _onlineAgentCount?.toString() ?? '—',
+                          icon: Icons.wifi_rounded,
+                          color: const Color(0xFF16A34A),
+                          onTap: () => _openAgentList('online'),
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: _AgentMetricCard(
+                          label: 'Offline',
+                          value: _offlineAgentCount?.toString() ?? '—',
+                          icon: Icons.wifi_off_rounded,
+                          color: const Color(0xFF64748B),
+                          onTap: () => _openAgentList('offline'),
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: _AgentMetricCard(
+                          label: 'Total agen',
+                          value: _totalAgentCount?.toString() ?? '—',
+                          icon: Icons.groups_rounded,
+                          color: _primary,
+                          onTap: () => _openAgentList('all'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    child: InkWell(
+                      onTap: _openMyTasks,
+                      borderRadius: BorderRadius.circular(16),
+                      child: Ink(
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFDCE8F5)),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x0D172033),
+                              blurRadius: 12,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEAF3FF),
+                                borderRadius: BorderRadius.circular(13),
+                              ),
+                              child: const Icon(
+                                Icons.checklist_rounded,
+                                color: _primary,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Tugas Saya',
+                                    style: TextStyle(
+                                      color: _ink,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  SizedBox(height: 3),
+                                  Text(
+                                    'Buat dan kelola tugas pribadi',
+                                    style: TextStyle(
+                                      color: _muted,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              color: _muted,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 5),
-              Text(
-                'Tugas pribadi milik $_displayName.',
-                style: const TextStyle(color: _muted, fontSize: 13),
-              ),
-              const SizedBox(height: 14),
-              if (_isLoadingMyTasks)
-                const Padding(
-                  padding: EdgeInsets.all(36),
-                  child: Center(
-                    child: CircularProgressIndicator(color: _primary),
-                  ),
-                )
-              else if (_myTasksError != null)
-                _StatusCard(
-                  icon: Icons.cloud_off_rounded,
-                  message: _myTasksError!,
-                  actionLabel: 'Coba lagi',
-                  onPressed: _loadMyTasks,
-                )
-              else if (_unfinishedMyTasks.isEmpty)
-                const _StatusCard(
-                  icon: Icons.assignment_outlined,
-                  message: 'Belum ada tugas pribadi yang belum selesai.',
-                )
-              else
-                for (final task in _unfinishedMyTasks) _buildMyTaskCard(task),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Daftar Agen Online',
-                      style: TextStyle(
-                        color: _ink,
-                        fontSize: 21,
-                        fontWeight: FontWeight.w800,
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Daftar Tugas Saya',
+                          style: TextStyle(
+                            color: _ink,
+                            fontSize: 21,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Tugas pribadi milik $_displayName.',
+                    style: const TextStyle(color: _muted, fontSize: 13),
+                  ),
+                  const SizedBox(height: 14),
+                  if (_isLoadingMyTasks)
+                    const Padding(
+                      padding: EdgeInsets.all(36),
+                      child: Center(
+                        child: CircularProgressIndicator(color: _primary),
+                      ),
+                    )
+                  else if (_myTasksError != null)
+                    _StatusCard(
+                      icon: Icons.cloud_off_rounded,
+                      message: _myTasksError!,
+                      actionLabel: 'Coba lagi',
+                      onPressed: _loadMyTasks,
+                    )
+                  else if (_unfinishedMyTasks.isEmpty)
+                    const _StatusCard(
+                      icon: Icons.assignment_outlined,
+                      message: 'Belum ada tugas pribadi yang belum selesai.',
+                    )
+                  else
+                    for (final task in _unfinishedMyTasks)
+                      _buildMyTaskCard(task),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Daftar Agen Online',
+                          style: TextStyle(
+                            color: _ink,
+                            fontSize: 21,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Agen $_visibleRolesLabel yang sedang aktif di cabang ini.',
+                    style: const TextStyle(color: _muted, fontSize: 13),
+                  ),
+                  const SizedBox(height: 14),
+                  if (_isLoading)
+                    const Padding(
+                      padding: EdgeInsets.all(36),
+                      child: Center(
+                        child: CircularProgressIndicator(color: _primary),
+                      ),
+                    )
+                  else if (_error != null)
+                    _StatusCard(
+                      icon: Icons.cloud_off_rounded,
+                      message: _error!,
+                      actionLabel: 'Coba lagi',
+                      onPressed: _loadAgents,
+                    )
+                  else if (_agents.isEmpty)
+                    const _StatusCard(
+                      icon: Icons.wifi_off_rounded,
+                      message: 'Tidak ada agen yang sedang online saat ini.',
+                    )
+                  else
+                    for (final agent in _agents)
+                      _AgentCard(
+                        agent: agent,
+                        onTap: (position) =>
+                            _showAgentQuickMenu(agent, position),
+                      ),
+                  if (!_isLoading && _error == null) ...[
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      key: _viewAllAgentsButtonKey,
+                      width: double.infinity,
+                      height: 50,
+                      child: _isViewAllAgentsButtonSticky
+                          ? const SizedBox.shrink()
+                          : allAgentsButton,
+                    ),
+                  ],
                 ],
               ),
-              const SizedBox(height: 5),
-              Text(
-                'Agen $_visibleRolesLabel yang sedang aktif di cabang ini.',
-                style: const TextStyle(color: _muted, fontSize: 13),
-              ),
-              const SizedBox(height: 14),
-              if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.all(36),
-                  child: Center(
-                    child: CircularProgressIndicator(color: _primary),
-                  ),
-                )
-              else if (_error != null)
-                _StatusCard(
-                  icon: Icons.cloud_off_rounded,
-                  message: _error!,
-                  actionLabel: 'Coba lagi',
-                  onPressed: _loadAgents,
-                )
-              else if (_agents.isEmpty)
-                const _StatusCard(
-                  icon: Icons.wifi_off_rounded,
-                  message: 'Tidak ada agen yang sedang online saat ini.',
-                )
-              else
-                for (final agent in _agents)
-                  _AgentCard(
-                    agent: agent,
-                    onTap: (position) => _showAgentQuickMenu(agent, position),
-                  ),
-              if (!_isLoading && _error == null) ...[
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: _openAgentMap,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _primary,
-                    backgroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 50),
-                    side: const BorderSide(color: Color(0xFFBBD5F5)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  icon: const Icon(Icons.groups_rounded),
-                  label: const Text(
-                    'Lihat Seluruh Agen',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
-        ),
+          if (!_isLoading && _error == null && _isViewAllAgentsButtonSticky)
+            Positioned(
+              left: 18,
+              right: 18,
+              bottom: 0,
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _withStickyButtonShadow(allAgentsButton),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
