@@ -219,6 +219,7 @@ class _AgentListPageState extends State<AgentListPage>
   bool _didFocusRequestedAgent = false;
   String? _focusAgentId;
   String? _selectedMapAgentId;
+  String? _lockedAgentId;
   bool _isOfficeInfoSelected = false;
   Map<String, dynamic> _officeData = {};
   bool _showAgentSearch = false;
@@ -397,6 +398,7 @@ class _AgentListPageState extends State<AgentListPage>
   }
 
   void _onCurrentAgentMarkerAnimationTick() {
+    _followLockedAgent();
     if (mounted) setState(() {});
   }
 
@@ -623,6 +625,7 @@ class _AgentListPageState extends State<AgentListPage>
   }
 
   void _onAgentMarkerAnimationTick() {
+    _followLockedAgent();
     if (mounted) setState(() {});
   }
 
@@ -716,6 +719,71 @@ class _AgentListPageState extends State<AgentListPage>
     if (changed) _agentMarkerAnimationController.forward(from: 0);
   }
 
+  String? _agentMarkerId(Map<String, dynamic> agent) {
+    final id = (agent['NOMOR_AGEN'] ?? agent['I_AGEN'] ?? agent['NAMA_AGEN'])
+        ?.toString()
+        .trim();
+    return id == null || id.isEmpty ? null : id;
+  }
+
+  LatLng? _lockedAgentLocation() {
+    final lockedId = _lockedAgentId?.toUpperCase();
+    if (lockedId == null) return null;
+
+    if (_currentAgentId?.toUpperCase() == lockedId &&
+        _currentAgentMarkerFrom != null &&
+        _currentAgentMarkerTarget != null) {
+      final progress = Curves.easeInOutCubic.transform(
+        _currentAgentMarkerAnimationController.value,
+      );
+      final from = _currentAgentMarkerFrom!;
+      final target = _currentAgentMarkerTarget!;
+      return LatLng(
+        from.latitude + (target.latitude - from.latitude) * progress,
+        from.longitude + (target.longitude - from.longitude) * progress,
+      );
+    }
+
+    final progress = Curves.easeInOutCubic.transform(
+      _agentMarkerAnimationController.value,
+    );
+    for (final entry in _agentMarkerTransitions.entries) {
+      if (entry.key.toUpperCase() != lockedId) continue;
+      final transition = entry.value;
+      return LatLng(
+        transition.from.latitude +
+            (transition.to.latitude - transition.from.latitude) * progress,
+        transition.from.longitude +
+            (transition.to.longitude - transition.from.longitude) * progress,
+      );
+    }
+
+    for (final agent in _agents) {
+      if (_agentMarkerId(agent)?.toUpperCase() == lockedId) {
+        return _agentCoordinates(agent);
+      }
+    }
+    return null;
+  }
+
+  void _followLockedAgent() {
+    if (!_mapReady ||
+        _lockedAgentId == null ||
+        _centerAnimationController.isAnimating) {
+      return;
+    }
+    final location = _lockedAgentLocation();
+    if (location != null) {
+      _mapController.move(location, _mapController.camera.zoom);
+    }
+  }
+
+  void _onMapPositionChanged(flutter_map.MapCamera camera, bool hasGesture) {
+    if (!hasGesture || _lockedAgentId == null) return;
+    _lockedAgentId = null;
+    _centerAnimationController.stop();
+  }
+
   double _agentMarkerScale(_AgentMarkerTransition transition, double progress) {
     final curve = transition.toScale > transition.fromScale
         ? Curves.easeOutBack
@@ -764,7 +832,7 @@ class _AgentListPageState extends State<AgentListPage>
 
   void _updateMapCenterAnimation() {
     final start = _animationStartCenter;
-    final target = _animationTargetCenter;
+    final target = _lockedAgentLocation() ?? _animationTargetCenter;
     if (start == null || target == null) return;
 
     final progress = Curves.easeInOutCubic.transform(
@@ -806,6 +874,7 @@ class _AgentListPageState extends State<AgentListPage>
 
   void _recenterMap() {
     if (!_mapReady || !_hasValidCoordinates) return;
+    _lockedAgentId = null;
     _animationStartCenter = _mapController.camera.center;
     _animationTargetCenter = LatLng(_latitude!, _longitude!);
     _animationStartZoom = _mapController.camera.zoom;
@@ -815,6 +884,7 @@ class _AgentListPageState extends State<AgentListPage>
 
   void _centerIndonesiaMap() {
     if (!_mapReady) return;
+    _lockedAgentId = null;
     _animationStartCenter = _mapController.camera.center;
     _animationTargetCenter = _initialMapCenter;
     _animationStartZoom = _mapController.camera.zoom;
@@ -2775,6 +2845,7 @@ class _AgentListPageState extends State<AgentListPage>
     }
     if (!mounted) return;
 
+    _lockedAgentId = _agentMarkerId(agent);
     _animationStartCenter = _mapController.camera.center;
     _animationTargetCenter = location;
     _animationStartZoom = _mapController.camera.zoom;
@@ -3377,6 +3448,7 @@ class _AgentListPageState extends State<AgentListPage>
                       initialCenter: _initialMapCenter,
                       initialZoom: _hasValidCoordinates ? 15 : 4.2,
                       onMapReady: _onMapReady,
+                      onPositionChanged: _onMapPositionChanged,
                     ),
                     children: [
                       flutter_map.TileLayer(
