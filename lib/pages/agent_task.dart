@@ -43,6 +43,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   final Set<String> _updatingTaskIds = {};
   final Set<String> _selectedTaskIds = {};
   final TextEditingController _taskSearchController = TextEditingController();
+  final FocusNode _taskSearchFocusNode = FocusNode();
   Timer? _taskRefreshTimer;
 
   bool _isLoading = true;
@@ -306,6 +307,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   void dispose() {
     _taskRefreshTimer?.cancel();
     _taskSearchController.dispose();
+    _taskSearchFocusNode.dispose();
     super.dispose();
   }
 
@@ -2433,6 +2435,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                   const SizedBox(height: 4),
                   TextField(
                     controller: _taskSearchController,
+                    focusNode: _taskSearchFocusNode,
                     onChanged: (_) => setState(() {}),
                     textInputAction: TextInputAction.search,
                     decoration: InputDecoration(
@@ -2774,10 +2777,20 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
         IconButton(
           tooltip: _showTaskSearch ? 'Tutup pencarian' : 'Cari tugas',
           onPressed: () {
+            final showSearch = !_showTaskSearch;
             setState(() {
-              _showTaskSearch = !_showTaskSearch;
+              _showTaskSearch = showSearch;
               if (!_showTaskSearch) _taskSearchController.clear();
             });
+            if (showSearch) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted && _showTaskSearch) {
+                  _taskSearchFocusNode.requestFocus();
+                }
+              });
+            } else {
+              _taskSearchFocusNode.unfocus();
+            }
           },
           icon: Icon(
             _showTaskSearch ? Icons.close_rounded : Icons.search_rounded,
