@@ -1720,14 +1720,6 @@ class _KantorListPageState extends State<KantorListPage>
               ],
             ),
           ),
-          if (_searchFocused)
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => _searchFocusNode.unfocus(),
-                child: Container(color: const Color(0x990B1220)),
-              ),
-            ),
           Positioned(
             top: widget.showMiniMap ? 360 : 104,
             left: 18,
