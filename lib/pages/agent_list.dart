@@ -175,6 +175,7 @@ class _AgentListPageState extends State<AgentListPage>
       DraggableScrollableController();
   final ScrollController _pageScrollController = ScrollController();
   final TextEditingController _agentSearchController = TextEditingController();
+  final FocusNode _agentSearchFocusNode = FocusNode();
   late final AnimationController _centerAnimationController;
   late final AnimationController _mapAgentSheetAnimationController;
   late final AnimationController _agentMarkerAnimationController;
@@ -3265,6 +3266,7 @@ class _AgentListPageState extends State<AgentListPage>
     _agentRefreshTimer?.cancel();
     unawaited(_currentAgentPositionSubscription?.cancel());
     _agentSearchController.dispose();
+    _agentSearchFocusNode.dispose();
     _pageScrollController.dispose();
     _centerAnimationController.dispose();
     _mapAgentSheetAnimationController.dispose();
@@ -3658,12 +3660,22 @@ class _AgentListPageState extends State<AgentListPage>
                               ? 'Tutup pencarian'
                               : 'Cari agen',
                           onPressed: () {
+                            final showSearch = !_showAgentSearch;
                             setState(() {
-                              _showAgentSearch = !_showAgentSearch;
+                              _showAgentSearch = showSearch;
                               if (!_showAgentSearch) {
                                 _agentSearchController.clear();
                               }
                             });
+                            if (showSearch) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (mounted && _showAgentSearch) {
+                                  _agentSearchFocusNode.requestFocus();
+                                }
+                              });
+                            } else {
+                              _agentSearchFocusNode.unfocus();
+                            }
                           },
                           icon: Icon(
                             _showAgentSearch
@@ -3696,6 +3708,7 @@ class _AgentListPageState extends State<AgentListPage>
                       const SizedBox(height: 4),
                       TextField(
                         controller: _agentSearchController,
+                        focusNode: _agentSearchFocusNode,
                         onChanged: (_) => setState(() {}),
                         textInputAction: TextInputAction.search,
                         decoration: InputDecoration(
