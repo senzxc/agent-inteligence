@@ -145,6 +145,10 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
     return _taskStatus(task) == 'Selesai';
   }).length;
 
+  int get _unfinishedTasks => _tasks.where((task) {
+    return _taskStatus(task) != 'Selesai';
+  }).length;
+
   Set<String> get _selectableTaskIds =>
       _tasks.map(_taskId).where((taskId) => taskId.isNotEmpty).toSet();
 
@@ -2872,36 +2876,44 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   }
 
   Widget _buildSummary() {
-    return Row(
+    return GridView(
+      padding: EdgeInsets.zero,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        mainAxisExtent: 68,
+      ),
       children: [
-        Expanded(
-          child: _summaryCard(
-            title: 'Total Tugas',
-            value: '$_totalTasks',
-            icon: Icons.checklist_rounded,
-            color: const Color(0xFF2563EB),
-            background: const Color(0xFFEFF6FF),
-          ),
+        _summaryCard(
+          title: 'Total Tugas',
+          value: '$_totalTasks',
+          icon: Icons.checklist_rounded,
+          color: const Color(0xFF2563EB),
+          background: const Color(0xFFEFF6FF),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _summaryCard(
-            title: 'Berjalan',
-            value: '$_runningTasks',
-            icon: Icons.pending_actions_rounded,
-            color: const Color(0xFFD97706),
-            background: const Color(0xFFFFF7ED),
-          ),
+        _summaryCard(
+          title: 'Belum selesai',
+          value: '$_unfinishedTasks',
+          icon: Icons.assignment_late_outlined,
+          color: const Color(0xFF7C3AED),
+          background: const Color(0xFFF5F3FF),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _summaryCard(
-            title: 'Selesai',
-            value: '$_completedTasks',
-            icon: Icons.task_alt_rounded,
-            color: const Color(0xFF16A34A),
-            background: const Color(0xFFF0FDF4),
-          ),
+        _summaryCard(
+          title: 'Berjalan',
+          value: '$_runningTasks',
+          icon: Icons.pending_actions_rounded,
+          color: const Color(0xFFD97706),
+          background: const Color(0xFFFFF7ED),
+        ),
+        _summaryCard(
+          title: 'Selesai',
+          value: '$_completedTasks',
+          icon: Icons.task_alt_rounded,
+          color: const Color(0xFF16A34A),
+          background: const Color(0xFFF0FDF4),
         ),
       ],
     );
