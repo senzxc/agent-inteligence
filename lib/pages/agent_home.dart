@@ -45,22 +45,24 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
       _isViewAllTasksButtonUpdateScheduled = false;
       if (!mounted) return;
 
+      var isSticky = false;
       final buttonRenderObject = _viewAllTasksButtonKey.currentContext
           ?.findRenderObject();
       final viewportRenderObject = _dashboardScrollViewportKey.currentContext
           ?.findRenderObject();
-      var isSticky = false;
       if (buttonRenderObject is RenderBox &&
           buttonRenderObject.hasSize &&
           viewportRenderObject is RenderBox &&
           viewportRenderObject.hasSize) {
+        final buttonTop = buttonRenderObject.localToGlobal(Offset.zero).dy;
         final buttonBottom = buttonRenderObject
             .localToGlobal(Offset(0, buttonRenderObject.size.height))
             .dy;
+        final viewportTop = viewportRenderObject.localToGlobal(Offset.zero).dy;
         final viewportBottom = viewportRenderObject
             .localToGlobal(Offset(0, viewportRenderObject.size.height))
             .dy;
-        isSticky = buttonBottom > viewportBottom;
+        isSticky = buttonBottom <= viewportTop || buttonTop >= viewportBottom;
       }
 
       if (_isViewAllTasksButtonSticky != isSticky) {
@@ -367,6 +369,14 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
           statusError = 'ID tugas tidak ditemukan pada respons server.';
         });
         return;
+      }
+
+      if (nextStatus == 'Selesai') {
+        final confirmed = await showTaskCompletionConfirmation(
+          dialogContext,
+          taskTitle: _title(task),
+        );
+        if (!confirmed || !mounted || !dialogContext.mounted) return;
       }
 
       setDialogState(() {
@@ -1031,19 +1041,36 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
               ),
             ),
           ),
-          if (_isViewAllTasksButtonSticky)
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 0,
-              child: SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _withStickyButtonShadow(allTasksButton),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 0,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: IgnorePointer(
+                  ignoring: !_isViewAllTasksButtonSticky,
+                  child: ExcludeSemantics(
+                    excluding: !_isViewAllTasksButtonSticky,
+                    child: AnimatedSlide(
+                      offset: _isViewAllTasksButtonSticky
+                          ? Offset.zero
+                          : const Offset(0, 1.3),
+                      duration: const Duration(milliseconds: 380),
+                      curve: Curves.easeOutBack,
+                      child: AnimatedOpacity(
+                        opacity: _isViewAllTasksButtonSticky ? 1 : 0,
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOut,
+                        child: _withStickyButtonShadow(allTasksButton),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
+          ),
         ],
       ),
     );
