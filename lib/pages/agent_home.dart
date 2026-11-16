@@ -1318,7 +1318,7 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
       );
     }
 
-    final recentTasks = unfinishedTasks.take(3).toList();
+    final recentTasks = unfinishedTasks.take(5).toList();
 
     return Column(children: recentTasks.map(_buildTaskCard).toList());
   }
