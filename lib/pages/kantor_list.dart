@@ -1859,22 +1859,6 @@ class _KantorListPageState extends State<KantorListPage>
               ],
             ),
           ),
-          if (_searchFocused && _searchQuery.isNotEmpty)
-            Positioned(
-              top: widget.showMiniMap ? 426 : 170,
-              left: 24,
-              right: 24,
-              child: IgnorePointer(
-                child: Text(
-                  '${results.length} hasil ditemukan',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
           if (widget.showMiniMap && officeSheetOffice != null)
             Positioned.fill(
               child: LayoutBuilder(
