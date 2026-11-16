@@ -397,10 +397,25 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
     return DateTime.tryParse(raw);
   }
 
-  String _taskCreatedAt(Map<String, dynamic> task) {
-    final date = _taskCreatedDate(task);
-    if (date == null) return 'Tanggal dibuat tidak tersedia';
+  DateTime? _taskCompletedDate(Map<String, dynamic> task) {
+    final completedAt = (task['completedAt'] ?? task['completed_at'])
+        ?.toString()
+        .trim();
+    if (completedAt != null && completedAt.isNotEmpty) {
+      final date = DateTime.tryParse(completedAt);
+      if (date != null) return date;
+    }
 
+    if (_taskStatus(task) != 'Selesai') return null;
+    final updatedAt = (task['updatedAt'] ?? task['updated_at'])
+        ?.toString()
+        .trim();
+    return updatedAt == null || updatedAt.isEmpty
+        ? null
+        : DateTime.tryParse(updatedAt);
+  }
+
+  String _formatTaskDate(DateTime date) {
     const months = [
       'Jan',
       'Feb',
@@ -418,6 +433,18 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
 
     return '${date.day.toString().padLeft(2, '0')} '
         '${months[date.month - 1]} ${date.year}';
+  }
+
+  String _taskCreatedAt(Map<String, dynamic> task) {
+    final date = _taskCreatedDate(task);
+    if (date == null) return 'Tanggal dibuat tidak tersedia';
+
+    return _formatTaskDate(date);
+  }
+
+  String _taskCompletedAt(Map<String, dynamic> task) {
+    final date = _taskCompletedDate(task);
+    return date == null ? '-' : _formatTaskDate(date);
   }
 
   DateTime? _taskSortDate(Map<String, dynamic> task, _TaskSortField field) {
@@ -1183,6 +1210,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
 
   Future<void> _showTaskDetailsDialog(Map<String, dynamic> task) async {
     var selectedStatus = _taskStatus(task);
+    var completedAt = _taskCompletedAt(task);
     var isUpdatingStatus = false;
     String? statusError;
 
@@ -1233,6 +1261,14 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                   isUpdatingStatus = false;
                   if (updated == true) {
                     selectedStatus = nextStatus;
+                    if (nextStatus == 'Selesai') {
+                      for (final updatedTask in _tasks) {
+                        if (_taskId(updatedTask) == _taskId(task)) {
+                          completedAt = _taskCompletedAt(updatedTask);
+                          break;
+                        }
+                      }
+                    }
                   } else if (updated == false) {
                     statusError = 'Status tugas gagal diperbarui. Coba lagi.';
                   }
@@ -1452,6 +1488,11 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                               icon: Icons.calendar_today_outlined,
                               label: 'Tanggal dibuat',
                               value: _taskCreatedAt(task),
+                            ),
+                            _buildTaskDetailTile(
+                              icon: Icons.task_alt_rounded,
+                              label: 'Selesai pada',
+                              value: completedAt,
                             ),
                           ],
                         ),
@@ -2895,7 +2936,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
           background: const Color(0xFFEFF6FF),
         ),
         _summaryCard(
-          title: 'Belum selesai',
+          title: 'Belum dimulai',
           value: '$_unfinishedTasks',
           icon: Icons.assignment_late_outlined,
           color: const Color(0xFF7C3AED),
@@ -3313,6 +3354,83 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
         statusIcon = Icons.radio_button_unchecked_rounded;
     }
 
+    final statusLabel = isCompleted
+        ? 'Selesai: ${_taskCompletedAt(task)}'
+        : status;
+    final deadlineCard = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFF),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.event_outlined, size: 17, color: _primary),
+          const SizedBox(width: 4),
+          const Text(
+            'Tenggat:',
+            style: TextStyle(
+              color: _textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              deadline == 'Tidak ditentukan' ? 'Tanpa tenggat' : deadline,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: _textSecondary,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    final statusChip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: statusBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: statusColor.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(statusIcon, color: statusColor, size: 15),
+          const SizedBox(width: 5),
+          if (isCompleted)
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 120),
+              child: Text(
+                statusLabel,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: statusColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            )
+          else
+            Text(
+              statusLabel,
+              style: TextStyle(
+                color: statusColor,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+        ],
+      ),
+    );
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(15),
@@ -3500,69 +3618,9 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
           const SizedBox(height: 20),
           Row(
             children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 9,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FBFF),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.event_outlined,
-                        size: 17,
-                        color: _primary,
-                      ),
-                      const SizedBox(width: 7),
-                      Expanded(
-                        child: Text(
-                          deadline == 'Tidak ditentukan'
-                              ? 'Tanpa tenggat'
-                              : deadline,
-                          style: const TextStyle(
-                            color: _textSecondary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              Expanded(child: deadlineCard),
               const SizedBox(width: 9),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: statusBackground,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: statusColor.withValues(alpha: 0.14),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(statusIcon, color: statusColor, size: 15),
-                    const SizedBox(width: 5),
-                    Text(
-                      status,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              statusChip,
             ],
           ),
           const SizedBox(height: 10),
