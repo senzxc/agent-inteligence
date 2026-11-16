@@ -498,6 +498,14 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
         return;
       }
 
+      if (nextStatus == 'Selesai') {
+        final confirmed = await showTaskCompletionConfirmation(
+          dialogContext,
+          taskTitle: title,
+        );
+        if (!confirmed || !mounted || !dialogContext.mounted) return;
+      }
+
       setDialogState(() {
         isUpdatingStatus = true;
         statusError = null;
