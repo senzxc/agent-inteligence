@@ -1345,54 +1345,100 @@ class _HomePageState extends State<HomePage> with RouteAware {
       );
     }).toList();
     final previewCabangList = cabangList.take(5).toList();
-    final allBranchesButton = material.OutlinedButton.icon(
-      onPressed: () {
-        Navigator.pushNamed(context, '/kantor-list', arguments: user);
-      },
-      style: material.OutlinedButton.styleFrom(
-        foregroundColor: const material.Color(0xFF1565C0),
-        backgroundColor: material.Colors.white,
-        minimumSize: const material.Size(0, 50),
-        padding: const material.EdgeInsets.symmetric(horizontal: 6),
+    final viewAllButtons = material.Material(
+      color: material.Colors.white,
+      shape: material.RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
         side: const material.BorderSide(color: material.Color(0xFFBBD5F5)),
-        shape: material.RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(
+        height: 50,
+        child: Row(
+          children: [
+            Expanded(
+              child: material.InkWell(
+                onTap: () {
+                  Navigator.pushNamed(context, '/kantor-list', arguments: user);
+                },
+                child: SizedBox.expand(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const material.Icon(
+                          material.Icons.storefront_rounded,
+                          color: material.Color(0xFF1565C0),
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        const Flexible(
+                          child: Text(
+                            'Lihat Seluruh Cabang',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Color(0xFF1565C0),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Container(
+              width: 1,
+              height: 28,
+              color: const material.Color(0xFFD1D5DB),
+            ),
+            Expanded(
+              child: material.InkWell(
+                onTap: () => _openAgentList(
+                  user: user,
+                  appRole: appRole,
+                  statusFilter: 'all',
+                  viewAllBranches: appRole == 'HEAD_MARKETING',
+                  showIndonesiaMapButton: true,
+                ),
+                child: SizedBox.expand(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const material.Icon(
+                          material.Icons.groups_rounded,
+                          color: material.Color(0xFF1565C0),
+                          size: 18,
+                        ),
+                        const SizedBox(width: 6),
+                        const Flexible(
+                          child: Text(
+                            'Lihat Seluruh Agen',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Color(0xFF1565C0),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
-      ),
-      icon: const material.Icon(material.Icons.storefront_rounded, size: 18),
-      label: const Text(
-        'Lihat Seluruh Cabang',
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-      ),
-    );
-    final allAgentsButton = material.OutlinedButton.icon(
-      onPressed: () => _openAgentList(
-        user: user,
-        appRole: appRole,
-        statusFilter: 'all',
-        viewAllBranches: appRole == 'HEAD_MARKETING',
-        showIndonesiaMapButton: true,
-      ),
-      style: material.OutlinedButton.styleFrom(
-        foregroundColor: const material.Color(0xFF1565C0),
-        backgroundColor: material.Colors.white,
-        minimumSize: const material.Size(0, 50),
-        padding: const material.EdgeInsets.symmetric(horizontal: 6),
-        side: const material.BorderSide(color: material.Color(0xFFBBD5F5)),
-        shape: material.RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
-      ),
-      icon: const material.Icon(material.Icons.groups_rounded, size: 18),
-      label: const Text(
-        'Lihat Seluruh Agen',
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
       ),
     );
     _scheduleViewAllButtonsUpdate();
@@ -1440,13 +1486,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: Row(
-                children: [
-                  Expanded(child: _withStickyButtonShadow(allBranchesButton)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _withStickyButtonShadow(allAgentsButton)),
-                ],
-              ),
+              child: _withStickyButtonShadow(viewAllButtons),
             ),
           ),
       ],
@@ -1928,13 +1968,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
                     height: 50,
                     child: _areViewAllButtonsSticky
                         ? const SizedBox.shrink()
-                        : Row(
-                            children: [
-                              Expanded(child: allBranchesButton),
-                              const SizedBox(width: 10),
-                              Expanded(child: allAgentsButton),
-                            ],
-                          ),
+                        : viewAllButtons,
                   ),
                 ),
             ],
