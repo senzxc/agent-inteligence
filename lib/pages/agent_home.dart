@@ -302,12 +302,7 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  String _createdAt(Map<String, dynamic> task) {
-    final raw = (task['createdAt'] ?? task['created_at'] ?? task['created'])
-        ?.toString()
-        .trim();
-    final date = raw == null ? null : DateTime.tryParse(raw);
-    if (date == null) return 'Tidak tersedia';
+  String _formatTaskDate(DateTime date) {
     const months = [
       'Jan',
       'Feb',
@@ -325,8 +320,33 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
+  String _createdAt(Map<String, dynamic> task) {
+    final raw = (task['createdAt'] ?? task['created_at'] ?? task['created'])
+        ?.toString()
+        .trim();
+    final date = raw == null ? null : DateTime.tryParse(raw);
+    return date == null ? 'Tidak tersedia' : _formatTaskDate(date);
+  }
+
+  String _completedAt(Map<String, dynamic> task) {
+    final raw = (task['completedAt'] ?? task['completed_at'])
+        ?.toString()
+        .trim();
+    var date = raw == null || raw.isEmpty ? null : DateTime.tryParse(raw);
+    if (date == null && _status(task) == 'Selesai') {
+      final updatedAt = (task['updatedAt'] ?? task['updated_at'])
+          ?.toString()
+          .trim();
+      date = updatedAt == null || updatedAt.isEmpty
+          ? null
+          : DateTime.tryParse(updatedAt);
+    }
+    return date == null ? '-' : _formatTaskDate(date);
+  }
+
   Future<void> _showTaskDetails(Map<String, dynamic> task) async {
     var selectedStatus = _status(task);
+    var completedAt = _completedAt(task);
     var isUpdatingStatus = false;
     String? statusError;
 
@@ -416,6 +436,14 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
         });
         setDialogState(() {
           selectedStatus = nextStatus;
+          if (nextStatus == 'Selesai') {
+            for (final updatedTask in _tasks) {
+              if (_taskId(updatedTask) == taskId) {
+                completedAt = _completedAt(updatedTask);
+                break;
+              }
+            }
+          }
         });
       } catch (error) {
         if (!mounted || !dialogContext.mounted) return;
@@ -655,6 +683,11 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
                               icon: Icons.calendar_today_outlined,
                               label: 'Tanggal dibuat',
                               value: _createdAt(task),
+                            ),
+                            _TaskDetailTile(
+                              icon: Icons.task_alt_rounded,
+                              label: 'Selesai pada',
+                              value: completedAt,
                             ),
                           ],
                         ),

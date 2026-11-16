@@ -429,12 +429,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  String _myTaskCreatedAt(Map<String, dynamic> task) {
-    final raw = (task['createdAt'] ?? task['created_at'] ?? task['created'])
-        ?.toString()
-        .trim();
-    final date = raw == null ? null : DateTime.tryParse(raw);
-    if (date == null) return 'Tidak tersedia';
+  String _formatMyTaskDate(DateTime date) {
     const months = [
       'Jan',
       'Feb',
@@ -452,6 +447,30 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
+  String _myTaskCreatedAt(Map<String, dynamic> task) {
+    final raw = (task['createdAt'] ?? task['created_at'] ?? task['created'])
+        ?.toString()
+        .trim();
+    final date = raw == null ? null : DateTime.tryParse(raw);
+    return date == null ? 'Tidak tersedia' : _formatMyTaskDate(date);
+  }
+
+  String _myTaskCompletedAt(Map<String, dynamic> task) {
+    final raw = (task['completedAt'] ?? task['completed_at'])
+        ?.toString()
+        .trim();
+    var date = raw == null || raw.isEmpty ? null : DateTime.tryParse(raw);
+    if (date == null && _myTaskStatus(task) == 'Selesai') {
+      final updatedAt = (task['updatedAt'] ?? task['updated_at'])
+          ?.toString()
+          .trim();
+      date = updatedAt == null || updatedAt.isEmpty
+          ? null
+          : DateTime.tryParse(updatedAt);
+    }
+    return date == null ? '-' : _formatMyTaskDate(date);
+  }
+
   Future<void> _showMyTaskDetails(Map<String, dynamic> task) async {
     final title = (task['judul'] ?? task['title'] ?? 'Tugas tanpa judul')
         .toString();
@@ -459,6 +478,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
         .toString()
         .trim();
     var selectedStatus = _myTaskStatus(task);
+    var completedAt = _myTaskCompletedAt(task);
     var isUpdatingStatus = false;
     String? statusError;
 
@@ -520,6 +540,14 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
         if (!mounted) return;
         setDialogState(() {
           selectedStatus = nextStatus;
+          if (nextStatus == 'Selesai') {
+            for (final updatedTask in _myTasks) {
+              if (_myTaskId(updatedTask) == taskId) {
+                completedAt = _myTaskCompletedAt(updatedTask);
+                break;
+              }
+            }
+          }
         });
       } catch (error) {
         if (!mounted || !dialogContext.mounted) return;
@@ -788,6 +816,11 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
                               icon: Icons.calendar_today_outlined,
                               label: 'Tanggal dibuat',
                               value: _myTaskCreatedAt(task),
+                            ),
+                            _AgentDetailTile(
+                              icon: Icons.task_alt_rounded,
+                              label: 'Selesai pada',
+                              value: completedAt,
                             ),
                           ],
                         ),
