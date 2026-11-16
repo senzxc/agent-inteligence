@@ -49,6 +49,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
   String? _myTasksError;
   final ScrollController _dashboardScrollController = ScrollController();
   final GlobalKey _dashboardScrollViewportKey = GlobalKey();
+  final GlobalKey _onlineAgentsHeadingKey = GlobalKey();
   final GlobalKey _viewAllAgentsButtonKey = GlobalKey();
   bool _isViewAllAgentsButtonSticky = false;
   bool _isViewAllAgentsButtonUpdateScheduled = false;
@@ -64,18 +65,23 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
           ?.findRenderObject();
       final viewportRenderObject = _dashboardScrollViewportKey.currentContext
           ?.findRenderObject();
+      final headingRenderObject = _onlineAgentsHeadingKey.currentContext
+          ?.findRenderObject();
       var isSticky = false;
       if (buttonRenderObject is RenderBox &&
           buttonRenderObject.hasSize &&
           viewportRenderObject is RenderBox &&
-          viewportRenderObject.hasSize) {
+          viewportRenderObject.hasSize &&
+          headingRenderObject is RenderBox &&
+          headingRenderObject.hasSize) {
         final buttonBottom = buttonRenderObject
             .localToGlobal(Offset(0, buttonRenderObject.size.height))
             .dy;
+        final headingTop = headingRenderObject.localToGlobal(Offset.zero).dy;
         final viewportBottom = viewportRenderObject
             .localToGlobal(Offset(0, viewportRenderObject.size.height))
             .dy;
-        isSticky = buttonBottom > viewportBottom;
+        isSticky = headingTop < viewportBottom && buttonBottom > viewportBottom;
       }
 
       if (_isViewAllAgentsButtonSticky != isSticky) {
@@ -2319,9 +2325,10 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
                   const SizedBox(height: 24),
                   Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'Daftar Agen Online',
+                          key: _onlineAgentsHeadingKey,
                           style: TextStyle(
                             color: _ink,
                             fontSize: 21,
@@ -2378,7 +2385,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
               ),
             ),
           ),
-          if (!_isLoading && _error == null && _isViewAllAgentsButtonSticky)
+          if (!_isLoading && _error == null)
             Positioned(
               left: 18,
               right: 18,
@@ -2387,7 +2394,25 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
                 top: false,
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: _withStickyButtonShadow(allAgentsButton),
+                  child: IgnorePointer(
+                    ignoring: !_isViewAllAgentsButtonSticky,
+                    child: ExcludeSemantics(
+                      excluding: !_isViewAllAgentsButtonSticky,
+                      child: AnimatedSlide(
+                        offset: _isViewAllAgentsButtonSticky
+                            ? Offset.zero
+                            : const Offset(0, 1.3),
+                        duration: const Duration(milliseconds: 380),
+                        curve: Curves.easeOutBack,
+                        child: AnimatedOpacity(
+                          opacity: _isViewAllAgentsButtonSticky ? 1 : 0,
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOut,
+                          child: _withStickyButtonShadow(allAgentsButton),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
