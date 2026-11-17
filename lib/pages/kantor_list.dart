@@ -9,6 +9,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../services/api_service.dart';
+import '../services/recent_kantor_service.dart';
 import '../utils/kantor_type.dart';
 import '../widgets/press_bounce.dart';
 
@@ -1433,14 +1434,25 @@ class _KantorListPageState extends State<KantorListPage>
     );
   }
 
-  void _openKantor(Map<String, dynamic> kantor) {
+  Future<void> _openKantor(Map<String, dynamic> kantor) async {
     final args = ModalRoute.of(context)?.settings.arguments;
     final user = args is Map ? args : const <String, dynamic>{};
+    final officeCode = kantor['KODE_KANTOR']?.toString() ?? '';
+    try {
+      await RecentKantorService.recordOpenedOffice(
+        user: user,
+        officeCode: officeCode,
+      );
+    } catch (error) {
+      debugPrint('Gagal menyimpan riwayat cabang: $error');
+    }
+
+    if (!mounted) return;
     Navigator.pushNamed(
       context,
       '/agent-list',
       arguments: {
-        'KODE_KANTOR': kantor['KODE_KANTOR']?.toString() ?? '',
+        'KODE_KANTOR': officeCode,
         'NAMA_KANTOR': kantor['NAMA_KANTOR']?.toString() ?? '-',
         'ALAMAT_KANTOR':
             (kantor['ALAMAT_KANTOR_MUTASI'] ?? kantor['ALAMAT_KANTOR'])
