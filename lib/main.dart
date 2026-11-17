@@ -22,6 +22,7 @@ import 'pages/kantor_list.dart';
 import 'services/api_service.dart';
 import 'services/gps_tracking_service.dart';
 import 'services/push_notification_service.dart';
+import 'services/recent_kantor_service.dart';
 import 'utils/agency_role.dart';
 import 'utils/dashboard_route_observer.dart';
 import 'utils/kantor_type.dart';
@@ -867,6 +868,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with RouteAware {
   PageRoute<dynamic>? _dashboardRoute;
   List<Map<String, dynamic>> _kantorList = [];
+  List<String> _recentKantorCodes = [];
   bool _isLoadingKantor = true;
   bool _hasLoadedKantor = false;
   bool _canLoadDashboardStats = false;
@@ -877,6 +879,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
   int? _offlineAgentCount;
   String? _dashboardStatsError;
   String? _kantorLoadError;
+  String? _recentKantorLoadError;
   Map<String, dynamic>? _dashboardUser;
   Uint8List? _profilePhotoBytes;
   String? _loadedPhotoAgentId;
@@ -1026,13 +1029,28 @@ class _HomePageState extends State<HomePage> with RouteAware {
         final kantor = (data['data'] as List)
             .map((item) => Map<String, dynamic>.from(item as Map))
             .toList();
+        List<String> recentKantorCodes = [];
+        String? recentKantorLoadError;
+        try {
+          recentKantorCodes = await RecentKantorService.loadRecentOfficeCodes(
+            _dashboardUser ?? const <String, dynamic>{},
+          );
+        } catch (error) {
+          recentKantorLoadError = error.toString().replaceFirst(
+            'Exception: ',
+            '',
+          );
+          debugPrint('Gagal memuat riwayat cabang: $error');
+        }
 
         if (!mounted) return;
 
         setState(() {
           _kantorList = kantor;
+          _recentKantorCodes = recentKantorCodes;
           _isLoadingKantor = false;
           _kantorLoadError = null;
+          _recentKantorLoadError = recentKantorLoadError;
         });
 
         debugPrint('Jumlah kantor: ${_kantorList.length}');
@@ -1059,6 +1077,38 @@ class _HomePageState extends State<HomePage> with RouteAware {
 
       debugPrint('Error get kantor: $error');
     }
+  }
+
+  Future<void> _openBranch({
+    required Cabang cabang,
+    required Map<String, dynamic> user,
+    required String appRole,
+    required String levelUser,
+  }) async {
+    try {
+      await RecentKantorService.recordOpenedOffice(
+        user: user,
+        officeCode: cabang.kode,
+      );
+    } catch (error) {
+      debugPrint('Gagal menyimpan riwayat cabang: $error');
+    }
+
+    if (!mounted) return;
+    Navigator.pushNamed(
+      context,
+      '/agent-list',
+      arguments: {
+        'KODE_KANTOR': cabang.kode,
+        'NAMA_KANTOR': cabang.nama,
+        'ALAMAT_KANTOR': cabang.alamat,
+        'LATITUDE': cabang.lat,
+        'LONGITUDE': cabang.lng,
+        'DATA_KANTOR': cabang.data,
+        'APP_ROLE': appRole,
+        'LEVEL_USER': levelUser,
+      },
+    );
   }
 
   Future<void> _loadDashboardStats() async {
@@ -1329,22 +1379,31 @@ class _HomePageState extends State<HomePage> with RouteAware {
       return AgentHomePage(user: Map<String, dynamic>.from(user));
     }
 
-    final cabangList = _kantorList.map((kantor) {
-      return Cabang(
-        kode: kantor['KODE_KANTOR']?.toString() ?? '',
-        nama: kantor['NAMA_KANTOR']?.toString() ?? '-',
-        alamat:
-            (kantor['ALAMAT_KANTOR_MUTASI'] ?? kantor['ALAMAT_KANTOR'])
-                ?.toString() ??
-            '-',
-        email: kantor['EMAIL']?.toString() ?? '-',
-        lat: (kantor['LATITUDE'] as num?)?.toDouble() ?? 0.0,
-        lng: (kantor['LONGITUDE'] as num?)?.toDouble() ?? 0.0,
-        jenisKantor: kantor['KODE_JENIS_KANTOR']?.toString() ?? '',
-        data: kantor,
-      );
-    }).toList();
-    final previewCabangList = cabangList.take(5).toList();
+    final kantorByKode = <String, Map<String, dynamic>>{};
+    for (final kantor in _kantorList) {
+      final kode = kantor['KODE_KANTOR']?.toString().trim().toUpperCase() ?? '';
+      if (kode.isNotEmpty) kantorByKode[kode] = kantor;
+    }
+    final previewCabangList = _recentKantorCodes
+        .map((kode) => kantorByKode[kode])
+        .whereType<Map<String, dynamic>>()
+        .map(
+          (kantor) => Cabang(
+            kode: kantor['KODE_KANTOR']?.toString() ?? '',
+            nama: kantor['NAMA_KANTOR']?.toString() ?? '-',
+            alamat:
+                (kantor['ALAMAT_KANTOR_MUTASI'] ?? kantor['ALAMAT_KANTOR'])
+                    ?.toString() ??
+                '-',
+            email: kantor['EMAIL']?.toString() ?? '-',
+            lat: (kantor['LATITUDE'] as num?)?.toDouble() ?? 0.0,
+            lng: (kantor['LONGITUDE'] as num?)?.toDouble() ?? 0.0,
+            jenisKantor: kantor['KODE_JENIS_KANTOR']?.toString() ?? '',
+            data: kantor,
+          ),
+        )
+        .take(RecentKantorService.maxRecentOffices)
+        .toList();
     final viewAllButtons = material.Material(
       color: material.Colors.white,
       shape: material.RoundedRectangleBorder(
@@ -1757,7 +1816,9 @@ class _HomePageState extends State<HomePage> with RouteAware {
                   ],
                 ),
               ),
-              if (_dashboardStatsError != null || _kantorLoadError != null)
+              if (_dashboardStatsError != null ||
+                  _kantorLoadError != null ||
+                  _recentKantorLoadError != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   child: Container(
@@ -1783,6 +1844,8 @@ class _HomePageState extends State<HomePage> with RouteAware {
                             [
                               if (_kantorLoadError != null)
                                 'Kantor: $_kantorLoadError',
+                              if (_recentKantorLoadError != null)
+                                'Riwayat cabang: $_recentKantorLoadError',
                               if (_dashboardStatsError != null)
                                 'Statistik agen: $_dashboardStatsError',
                             ].join(' '),
@@ -1820,7 +1883,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
                   children: [
                     Expanded(
                       child: Text(
-                        'Daftar Cabang Perusahaan',
+                        'Cabang Terakhir Dibuka',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 18,
@@ -1849,6 +1912,16 @@ class _HomePageState extends State<HomePage> with RouteAware {
                   padding: EdgeInsets.symmetric(vertical: 32),
                   child: Center(child: CircularProgressIndicator()),
                 )
+              else if (previewCabangList.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 12, 20, 24),
+                  child: Center(
+                    child: Text(
+                      'Belum ada cabang yang dibuka.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                )
               else
                 ListView.builder(
                   shrinkWrap: true,
@@ -1871,19 +1944,11 @@ class _HomePageState extends State<HomePage> with RouteAware {
                         },
                         child: CardButton(
                           onPressed: () {
-                            Navigator.pushNamed(
-                              context,
-                              '/agent-list',
-                              arguments: {
-                                'KODE_KANTOR': cabang.kode,
-                                'NAMA_KANTOR': cabang.nama,
-                                'ALAMAT_KANTOR': cabang.alamat,
-                                'LATITUDE': cabang.lat,
-                                'LONGITUDE': cabang.lng,
-                                'DATA_KANTOR': cabang.data,
-                                'APP_ROLE': appRole,
-                                'LEVEL_USER': levelUser,
-                              },
+                            _openBranch(
+                              cabang: cabang,
+                              user: Map<String, dynamic>.from(user),
+                              appRole: appRole,
+                              levelUser: levelUser,
                             );
                           },
                           child: Row(
