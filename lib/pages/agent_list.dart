@@ -3310,10 +3310,10 @@ class _AgentListPageState extends State<AgentListPage>
       child: InkWell(
         borderRadius: borderRadius,
         onTap: () => setState(() => _selectedAgentStatus = statusFilter),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        child: Ink(
           decoration: BoxDecoration(
             borderRadius: borderRadius,
+            color: Colors.white,
             border: Border.all(
               color: isSelected
                   ? color.withValues(alpha: 0.55)
@@ -3327,47 +3327,50 @@ class _AgentListPageState extends State<AgentListPage>
               ),
             ],
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: backgroundColor,
-                  borderRadius: BorderRadius.circular(11),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: backgroundColor,
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Icon(icon, color: color, size: 19),
                 ),
-                child: Icon(icon, color: color, size: 19),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '$value',
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 18,
-                        height: 1.1,
-                        fontWeight: FontWeight.w800,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$value',
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 18,
+                          height: 1.1,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF64748B),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                      const SizedBox(height: 3),
+                      Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
