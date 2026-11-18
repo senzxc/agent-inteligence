@@ -1545,7 +1545,20 @@ class _HomePageState extends State<HomePage> with RouteAware {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: _withStickyButtonShadow(viewAllButtons),
+              child: material.TweenAnimationBuilder<material.Offset>(
+                tween: Tween<material.Offset>(
+                  begin: const material.Offset(0, 1.3),
+                  end: material.Offset.zero,
+                ),
+                duration: const Duration(milliseconds: 380),
+                curve: material.Curves.easeOutBack,
+                builder: (context, offset, child) =>
+                    material.FractionalTranslation(
+                      translation: offset,
+                      child: child,
+                    ),
+                child: _withStickyButtonShadow(viewAllButtons),
+              ),
             ),
           ),
       ],
