@@ -3264,6 +3264,7 @@ class _AgentListPageState extends State<AgentListPage>
             value: _agents.length,
             color: const Color(0xFF1565C0),
             backgroundColor: const Color(0xFFEAF3FF),
+            statusFilter: _AgentStatusFilter.all,
           ),
         ),
         const SizedBox(width: 10),
@@ -3274,6 +3275,7 @@ class _AgentListPageState extends State<AgentListPage>
             value: onlineCount,
             color: const Color(0xFF15803D),
             backgroundColor: const Color(0xFFDCFCE7),
+            statusFilter: _AgentStatusFilter.online,
           ),
         ),
         const SizedBox(width: 10),
@@ -3284,6 +3286,7 @@ class _AgentListPageState extends State<AgentListPage>
             value: _agents.length - onlineCount,
             color: const Color.fromARGB(255, 102, 102, 102),
             backgroundColor: const Color.fromARGB(59, 175, 175, 175),
+            statusFilter: _AgentStatusFilter.offline,
           ),
         ),
       ],
@@ -3296,62 +3299,77 @@ class _AgentListPageState extends State<AgentListPage>
     required int value,
     required Color color,
     required Color backgroundColor,
+    required _AgentStatusFilter statusFilter,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xFFDCE8F8)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x100F172A),
-            blurRadius: 10,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: backgroundColor,
-              borderRadius: BorderRadius.circular(11),
+    final isSelected = _selectedAgentStatus == statusFilter;
+    final borderRadius = BorderRadius.circular(15);
+
+    return Material(
+      color: Colors.white,
+      borderRadius: borderRadius,
+      child: InkWell(
+        borderRadius: borderRadius,
+        onTap: () => setState(() => _selectedAgentStatus = statusFilter),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          decoration: BoxDecoration(
+            borderRadius: borderRadius,
+            border: Border.all(
+              color: isSelected
+                  ? color.withValues(alpha: 0.55)
+                  : const Color(0xFFDCE8F8),
             ),
-            child: Icon(icon, color: color, size: 19),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x100F172A),
+                blurRadius: 10,
+                offset: Offset(0, 3),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '$value',
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 18,
-                    height: 1.1,
-                    fontWeight: FontWeight.w800,
-                  ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: backgroundColor,
+                  borderRadius: BorderRadius.circular(11),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Icon(icon, color: color, size: 19),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '$value',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 18,
+                        height: 1.1,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
