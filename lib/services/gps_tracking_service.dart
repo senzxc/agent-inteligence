@@ -22,6 +22,7 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
 
   StreamSubscription<Position>? _positionSubscription;
   StreamSubscription<ServiceStatus>? _gpsStatusSubscription;
+  Timer? _gpsRecoveryRetryTimer;
   final Set<Future<void>> _pendingLocationUpdates = {};
   Future<void> _locationUpdateQueue = Future<void>.value();
   Position? _latestPosition;
@@ -33,6 +34,8 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
   _MovementMode _movementMode = _MovementMode.stationary;
   _MovementMode? _candidateMovementMode;
   int _candidateMovementModeSamples = 0;
+  int _positionStreamGeneration = 0;
+  int _gpsRecoveryRetryAttempt = 0;
 
   bool _isTracking = false;
   bool _isStarting = false;
@@ -49,6 +52,13 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   static const double _maximumReportedAccuracyMeters = 50;
+  static const List<Duration> _gpsRecoveryRetryDelays = [
+    Duration(seconds: 2),
+    Duration(seconds: 5),
+    Duration(seconds: 10),
+    Duration(seconds: 30),
+    Duration(seconds: 60),
+  ];
 
   Future<void> ensureGpsReady() async {
     // Ulangi permintaan sistem sampai GPS aktif.
@@ -85,7 +95,11 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
   }
 
   Future<void> startAfterLogin() async {
-    if (_isTracking || _isStarting) return;
+    if (_isStarting) return;
+    if (_isTracking) {
+      await _recoverGps();
+      return;
+    }
 
     _isStarting = true;
 
@@ -113,16 +127,16 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
       _initializeMovementMode(position);
 
       _publishPosition(position);
-      await _sendLocation(position);
-
       _registerGpsMonitoring();
       await _startPositionStream();
+      unawaited(_sendLocation(position));
     } catch (_) {
-      // Jangan menganggap tracking berhasil jika proses awal gagal.
-      if (!_isTracking) {
-        await _positionSubscription?.cancel();
-        _positionSubscription = null;
-      }
+      _isTracking = false;
+      _clearGpsRecoveryRetry(resetAttempts: true);
+      ++_positionStreamGeneration;
+      await _positionSubscription?.cancel();
+      _positionSubscription = null;
+      await _disposeGpsMonitoring();
       rethrow;
     } finally {
       _isStarting = false;
@@ -170,6 +184,8 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
       _observerRegistered = true;
     }
 
+    if (kIsWeb) return;
+
     _gpsStatusSubscription ??= Geolocator.getServiceStatusStream().listen((
       status,
     ) {
@@ -188,14 +204,20 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
   }
 
   Future<void> _startPositionStream() async {
-    await _positionSubscription?.cancel();
+    final generation = ++_positionStreamGeneration;
+    final previousSubscription = _positionSubscription;
     _positionSubscription = null;
+    await previousSubscription?.cancel();
+    if (!_isTracking || generation != _positionStreamGeneration) return;
 
-    _positionSubscription =
+    var streamEnded = false;
+    final subscription =
         Geolocator.getPositionStream(
           locationSettings: _trackingLocationSettings(),
         ).listen(
           (position) {
+            if (!_isTracking || generation != _positionStreamGeneration) return;
+            _clearGpsRecoveryRetry(resetAttempts: true);
             _publishPosition(position);
             if (_updateMovementMode(position)) {
               unawaited(_startPositionStream());
@@ -203,40 +225,76 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
             unawaited(_queueLocationUpdate(position));
           },
           onError: (Object error) {
-            // Pemulihan akan dicoba saat status GPS berubah
-            // atau saat aplikasi kembali ke foreground.
-            _positionSubscription = null;
+            streamEnded = true;
+            _handlePositionStreamFailure(generation, error);
+          },
+          onDone: () {
+            streamEnded = true;
+            _handlePositionStreamFailure(
+              generation,
+              StateError('Stream lokasi berhenti.'),
+            );
           },
         );
+
+    if (_isTracking &&
+        generation == _positionStreamGeneration &&
+        !streamEnded) {
+      _positionSubscription = subscription;
+    } else {
+      await subscription.cancel();
+    }
+  }
+
+  void _handlePositionStreamFailure(int generation, Object error) {
+    if (!_isTracking || generation != _positionStreamGeneration) return;
+    _positionSubscription = null;
+    debugPrint('Stream lokasi berhenti: $error');
+    _scheduleGpsRecovery();
+  }
+
+  void _scheduleGpsRecovery() {
+    if (!_isTracking || (_gpsRecoveryRetryTimer?.isActive ?? false)) return;
+
+    final retryIndex = _gpsRecoveryRetryAttempt;
+    final delay = _gpsRecoveryRetryDelays[retryIndex];
+    if (_gpsRecoveryRetryAttempt < _gpsRecoveryRetryDelays.length - 1) {
+      _gpsRecoveryRetryAttempt++;
+    }
+    debugPrint(
+      'Mencoba memulihkan stream lokasi dalam ${delay.inSeconds} detik.',
+    );
+    _gpsRecoveryRetryTimer = Timer(delay, () {
+      _gpsRecoveryRetryTimer = null;
+      unawaited(_recoverGps());
+    });
+  }
+
+  void _clearGpsRecoveryRetry({bool resetAttempts = false}) {
+    _gpsRecoveryRetryTimer?.cancel();
+    _gpsRecoveryRetryTimer = null;
+    if (resetAttempts) _gpsRecoveryRetryAttempt = 0;
   }
 
   Future<void> _recoverGps() async {
     if (!_isTracking || _isRecoveringGps) return;
 
+    _clearGpsRecoveryRetry();
     _isRecoveringGps = true;
 
     try {
-      await _positionSubscription?.cancel();
+      final previousSubscription = _positionSubscription;
       _positionSubscription = null;
+      ++_positionStreamGeneration;
+      await previousSubscription?.cancel();
 
       // Jika GPS dimatikan, minta aktifkan kembali.
       await ensureGpsReady();
-
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 30),
-        ),
-      );
-
-      if (!_isTracking) return;
-      _initializeMovementMode(position);
-      _publishPosition(position);
-      await _queueLocationUpdate(position);
       if (!_isTracking) return;
       await _startPositionStream();
     } catch (error) {
       debugPrint('Pemulihan GPS gagal: $error');
+      _scheduleGpsRecovery();
     } finally {
       _isRecoveringGps = false;
     }
@@ -471,6 +529,8 @@ class AgentGpsTrackingService with WidgetsBindingObserver {
 
   Future<void> stopLocationUpdates() async {
     _isTracking = false;
+    _clearGpsRecoveryRetry(resetAttempts: true);
+    ++_positionStreamGeneration;
     await _positionSubscription?.cancel();
     _positionSubscription = null;
   }
