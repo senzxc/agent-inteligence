@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/cupertino.dart' as cupertino;
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
@@ -559,6 +560,22 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   DateTime _dateForIndex(int index) =>
       _dateRangeStart.add(Duration(days: index));
 
+  double _dateCardOpacity(int index) {
+    var currentPage = _datePageController.initialPage.toDouble();
+    if (_datePageController.hasClients &&
+        _datePageController.position.hasViewportDimension) {
+      currentPage =
+          _datePageController.page ??
+          _datePageController.initialPage.toDouble();
+    }
+
+    final distance = (index - currentPage).abs();
+    if (distance <= 1) return 1 - (distance * 0.25);
+    if (distance <= 2) return 0.75 - ((distance - 1) * 0.20);
+    if (distance <= 3) return 0.55 - ((distance - 2) * 0.20);
+    return 0.35;
+  }
+
   bool _isSameDate(DateTime first, DateTime second) =>
       first.year == second.year &&
       first.month == second.month &&
@@ -678,6 +695,10 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   String _formatTimeOfDay(TimeOfDay time) =>
       '${time.hour.toString().padLeft(2, '0')}:'
       '${time.minute.toString().padLeft(2, '0')}';
+
+  bool _isTimeBefore(TimeOfDay first, TimeOfDay second) =>
+      first.hour < second.hour ||
+      (first.hour == second.hour && first.minute < second.minute);
 
   String _monthName(int month) => const [
     'Januari',
@@ -2212,6 +2233,142 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
     );
   }
 
+  Future<TimeOfDay?> _showDeadlineTimePicker({
+    required BuildContext dialogContext,
+    required DateTime deadlineDate,
+    required TimeOfDay initialTime,
+  }) {
+    final now = DateTime.now();
+    final isToday = _isSameDate(deadlineDate, now);
+    final minimumDate = isToday
+        ? DateTime(now.year, now.month, now.day, now.hour, now.minute)
+        : null;
+    final maximumDate = isToday
+        ? DateTime(
+            deadlineDate.year,
+            deadlineDate.month,
+            deadlineDate.day,
+            23,
+            59,
+          )
+        : null;
+    var selectedDateTime = DateTime(
+      deadlineDate.year,
+      deadlineDate.month,
+      deadlineDate.day,
+      initialTime.hour,
+      initialTime.minute,
+    );
+    if (minimumDate != null && selectedDateTime.isBefore(minimumDate)) {
+      selectedDateTime = minimumDate;
+    }
+    var selectedTime = TimeOfDay.fromDateTime(selectedDateTime);
+
+    return showDialog<TimeOfDay>(
+      context: dialogContext,
+      builder: (pickerContext) => Dialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF0D47A1), Color(0xFF1976D2)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Pilih jam tenggat',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Tutup',
+                      onPressed: () => Navigator.pop(pickerContext),
+                      icon: const Icon(Icons.close, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                height: 164,
+                child: cupertino.CupertinoTheme(
+                  data: const cupertino.CupertinoThemeData(
+                    primaryColor: _primary,
+                  ),
+                  child: cupertino.CupertinoDatePicker(
+                    mode: cupertino.CupertinoDatePickerMode.time,
+                    initialDateTime: selectedDateTime,
+                    minimumDate: minimumDate,
+                    maximumDate: maximumDate,
+                    use24hFormat: true,
+                    minuteInterval: 1,
+                    backgroundColor: Colors.white,
+                    onDateTimeChanged: (value) {
+                      selectedTime = TimeOfDay.fromDateTime(value);
+                    },
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(pickerContext),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(46),
+                          foregroundColor: _textSecondary,
+                          side: const BorderSide(color: Color(0xFFCBD5E1)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('Batal'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () =>
+                            Navigator.pop(pickerContext, selectedTime),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(46),
+                          backgroundColor: _primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('Pilih'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _showAddTaskDialog({Map<String, dynamic>? task}) async {
     final isEditing = task != null;
     final taskId = isEditing ? _taskId(task) : '';
@@ -2230,11 +2387,19 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
       text: isEditing ? _taskDescription(task) : '',
     );
 
-    DateTime deadline = isEditing
+    final DateTime deadline = isEditing
         ? (_taskDeadlineDate(task) ?? _selectedDate)
         : _selectedDate;
+    final now = DateTime.now();
+    final initialDeadlineTime =
+        (isEditing ? _taskDeadlineTimeOfDay(task) : null) ??
+        TimeOfDay.fromDateTime(now);
+    final currentTime = TimeOfDay.fromDateTime(now);
     TimeOfDay deadlineTime =
-        (isEditing ? _taskDeadlineTimeOfDay(task) : null) ?? TimeOfDay.now();
+        _isSameDate(deadline, now) &&
+            _isTimeBefore(initialDeadlineTime, currentTime)
+        ? currentTime
+        : initialDeadlineTime;
     bool isSubmitting = false;
     String? submitError;
     final formKey = GlobalKey<FormState>();
@@ -2377,7 +2542,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                       const SizedBox(width: 9),
                                       Expanded(
                                         child: Text(
-                                          'Gagal menambahkan tugas: $submitError',
+                                          submitError!,
                                           style: const TextStyle(
                                             color: Color(0xFF991B1B),
                                             fontSize: 12,
@@ -2430,37 +2595,44 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                               Row(
                                 children: [
                                   Expanded(
-                                    child: OutlinedButton.icon(
-                                      onPressed: () async {
-                                        final picked = await showDatePicker(
-                                          context: dialogContext,
-                                          initialDate: deadline,
-                                          firstDate: _dateRangeStart,
-                                          lastDate: _dateForIndex(
-                                            _dateRangeLength - 1,
-                                          ),
-                                        );
-                                        if (picked != null) {
-                                          setDialogState(() {
-                                            deadline = picked;
-                                          });
-                                        }
-                                      },
-                                      icon: const Icon(
-                                        Icons.calendar_month_outlined,
-                                        size: 18,
+                                    child: Container(
+                                      height: 54,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
                                       ),
-                                      label: Text(
-                                        dateLabel,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: _primary,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 13,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF8FBFF),
+                                        borderRadius: BorderRadius.circular(13),
+                                        border: Border.all(
+                                          color: const Color(0xFFDCE6F2),
                                         ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.calendar_month_outlined,
+                                            size: 18,
+                                            color: _primary,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              dateLabel,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: _textPrimary,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                          const Icon(
+                                            Icons.lock_outline_rounded,
+                                            size: 16,
+                                            color: _textSecondary,
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
@@ -2468,22 +2640,16 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                   Expanded(
                                     child: OutlinedButton.icon(
                                       onPressed: () async {
-                                        final picked = await showTimePicker(
-                                          context: dialogContext,
-                                          initialTime: deadlineTime,
-                                          builder: (context, child) =>
-                                              MediaQuery(
-                                                data: MediaQuery.of(context)
-                                                    .copyWith(
-                                                      alwaysUse24HourFormat:
-                                                          true,
-                                                    ),
-                                                child: child!,
-                                              ),
-                                        );
+                                        final picked =
+                                            await _showDeadlineTimePicker(
+                                              dialogContext: dialogContext,
+                                              deadlineDate: deadline,
+                                              initialTime: deadlineTime,
+                                            );
                                         if (picked != null) {
                                           setDialogState(() {
                                             deadlineTime = picked;
+                                            submitError = null;
                                           });
                                         }
                                       },
@@ -2494,9 +2660,17 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                       label: Text(timeLabel),
                                       style: OutlinedButton.styleFrom(
                                         foregroundColor: _primary,
+                                        minimumSize: const Size.fromHeight(54),
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 8,
-                                          vertical: 13,
+                                        ),
+                                        side: const BorderSide(
+                                          color: Color(0xFFB7D2F5),
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            13,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -2505,7 +2679,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                               ),
                               const SizedBox(height: 8),
                               const Text(
-                                'Pilih tanggal dan jam tenggat (format 24 jam).',
+                                'Tanggal mengikuti hari terpilih. Pilih jam dalam format 24 jam.',
                                 style: TextStyle(
                                   color: _textSecondary,
                                   fontSize: 12,
@@ -2555,6 +2729,20 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                       if (!formKey.currentState!.validate()) {
                                         return;
                                       }
+                                      final now = DateTime.now();
+                                      if (_isSameDate(deadline, now) &&
+                                          _isTimeBefore(
+                                            deadlineTime,
+                                            TimeOfDay.fromDateTime(now),
+                                          )) {
+                                        setDialogState(() {
+                                          deadlineTime = TimeOfDay.fromDateTime(
+                                            now,
+                                          );
+                                          submitError = 'Jam tenggat tidak boleh lebih awal dari waktu sekarang.';
+                                        });
+                                        return;
+                                      }
 
                                       final formattedDeadline =
                                           '${deadline.year}-'
@@ -2594,8 +2782,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                       } else {
                                         setDialogState(() {
                                           isSubmitting = false;
-                                          submitError =
-                                              '${isEditing ? 'Gagal memperbarui' : 'Gagal menambahkan'} tugas: $errorMessage';
+                                          submitError = errorMessage;
                                         });
                                       }
                                     },
@@ -3023,34 +3210,22 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
           const SizedBox(height: 10),
           SizedBox(
             height: 66,
-            child: ShaderMask(
-              blendMode: BlendMode.modulate,
-              shaderCallback: (bounds) => const LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: [
-                  Color(0x55FFFFFF),
-                  Color(0xA0FFFFFF),
-                  Color(0xFFFFFFFF),
-                  Color(0xD0FFFFFF),
-                  Color(0x80FFFFFF),
-                  Color(0x35FFFFFF),
-                  Color(0x18FFFFFF),
-                ],
-                stops: [0, 0.15, 0.34, 0.5, 0.67, 0.84, 1],
-              ).createShader(bounds),
-              child: PageView.builder(
-                controller: _datePageController,
-                itemCount: _dateRangeLength,
-                onPageChanged: (index) {
-                  setState(() {
-                    _selectedDate = _dateForIndex(index);
-                  });
-                },
-                itemBuilder: (context, index) {
-                  final date = _dateForIndex(index);
-                  final isSelected = _isSameDate(date, _selectedDate);
-                  return Padding(
+            child: PageView.builder(
+              controller: _datePageController,
+              itemCount: _dateRangeLength,
+              onPageChanged: (index) {
+                setState(() {
+                  _selectedDate = _dateForIndex(index);
+                });
+              },
+              itemBuilder: (context, index) {
+                final date = _dateForIndex(index);
+                final isSelected = _isSameDate(date, _selectedDate);
+                return AnimatedBuilder(
+                  animation: _datePageController,
+                  builder: (context, child) =>
+                      Opacity(opacity: _dateCardOpacity(index), child: child),
+                  child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 2),
                     child: Material(
                       color: isSelected
@@ -3099,9 +3274,9 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                         ),
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -3594,42 +3769,52 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   SizedBox(
-                    width: 42,
+                    width: 50,
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          _taskDeadlineTime(task) ?? '--:--',
-                          maxLines: 1,
-                          style: const TextStyle(
-                            color: _primary,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
+                        SizedBox(
+                          height: 40,
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              _taskDeadlineTime(task) ?? '--:--',
+                              maxLines: 1,
+                              style: const TextStyle(
+                                color: _primary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 8),
                         Expanded(
-                          child: Column(
-                            children: [
-                              Container(
-                                width: 9,
-                                height: 9,
-                                decoration: BoxDecoration(
-                                  color: statusColor,
-                                  shape: BoxShape.circle,
+                          child: SizedBox(
+                            width: 16,
+                            child: Column(
+                              children: [
+                                Container(
+                                  width: 9,
+                                  height: 9,
+                                  decoration: BoxDecoration(
+                                    color: statusColor,
+                                    shape: BoxShape.circle,
+                                  ),
                                 ),
-                              ),
-                              Expanded(
-                                child: Container(
-                                  width: 2,
-                                  color: const Color(0xFFCBD5E1),
+                                Expanded(
+                                  child: Container(
+                                    width: 2,
+                                    color: const Color(0xFFCBD5E1),
+                                  ),
                                 ),
-                              ),
-                              Icon(
-                                Icons.arrow_downward_rounded,
-                                color: const Color(0xFF94A3B8),
-                                size: 16,
-                              ),
-                            ],
+                                Icon(
+                                  Icons.arrow_downward_rounded,
+                                  color: const Color(0xFF94A3B8),
+                                  size: 16,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
@@ -3663,6 +3848,15 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                   minWidth: 42,
                                   minHeight: 42,
                                 ),
+                                color: Colors.white,
+                                elevation: 10,
+                                shadowColor: const Color(0x260F172A),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  side: const BorderSide(
+                                    color: Color(0xFFE2E8F0),
+                                  ),
+                                ),
                                 icon: const Icon(
                                   Icons.more_vert_rounded,
                                   color: _textSecondary,
@@ -3679,17 +3873,51 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                   if (status != 'Selesai')
                                     const PopupMenuItem(
                                       value: 'edit',
-                                      child: Text('Edit tugas'),
+                                      height: 48,
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.edit_outlined,
+                                            color: _primary,
+                                            size: 20,
+                                          ),
+                                          SizedBox(width: 10),
+                                          Text(
+                                            'Edit tugas',
+                                            style: TextStyle(
+                                              color: _textPrimary,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   const PopupMenuItem(
                                     value: 'delete',
-                                    child: Text('Hapus tugas'),
+                                    height: 48,
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.delete_outline_rounded,
+                                          color: Color(0xFFDC2626),
+                                          size: 20,
+                                        ),
+                                        SizedBox(width: 10),
+                                        Text(
+                                          'Hapus tugas',
+                                          style: TextStyle(
+                                            color: Color(0xFFB91C1C),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),
                           ],
                         ),
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 2),
                         Row(
                           children: [
                             const Icon(
@@ -3713,63 +3941,68 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                           ],
                         ),
                         if (_taskDescription(task).isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            _taskDescription(task),
-                            maxLines: 5,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: _textSecondary,
-                              fontSize: 12,
-                              height: 1.45,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Align(
-                    alignment: Alignment.bottomRight,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusBackground,
-                        borderRadius: BorderRadius.circular(11),
-                        border: Border.all(
-                          color: statusColor.withValues(alpha: 0.16),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (isUpdating)
-                            SizedBox(
-                              width: 13,
-                              height: 13,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: statusColor,
+                          const SizedBox(height: 12),
+                          Padding(
+                            padding: const EdgeInsets.only(right: 50),
+                            child: Text(
+                              _taskDescription(task),
+                              maxLines: 5,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: _textSecondary,
+                                fontSize: 12,
+                                height: 1.45,
                               ),
-                            )
-                          else
-                            Icon(statusIcon, color: statusColor, size: 14),
-                          const SizedBox(width: 4),
-                          Text(
-                            status,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: statusColor,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ],
-                      ),
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: statusBackground,
+                              borderRadius: BorderRadius.circular(11),
+                              border: Border.all(
+                                color: statusColor.withValues(alpha: 0.16),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (isUpdating)
+                                  SizedBox(
+                                    width: 13,
+                                    height: 13,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: statusColor,
+                                    ),
+                                  )
+                                else
+                                  Icon(
+                                    statusIcon,
+                                    color: statusColor,
+                                    size: 14,
+                                  ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  status,
+                                  style: TextStyle(
+                                    color: statusColor,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
