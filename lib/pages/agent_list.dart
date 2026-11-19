@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../utils/agency_role.dart';
 import '../utils/kantor_type.dart';
+import '../widgets/app_toast.dart';
 import '../widgets/agent_marker.dart';
 import '../widgets/agent_details_dialog.dart';
 import '../widgets/press_bounce.dart';
@@ -1356,8 +1357,10 @@ class _AgentListPageState extends State<AgentListPage>
   Future<void> _openWhatsAppChat(String phone) async {
     final digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
     if (digits.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nomor WhatsApp agen belum tersedia.')),
+      showAppToast(
+        context,
+        'Nomor WhatsApp agen belum tersedia.',
+        type: AppToastType.warning,
       );
       return;
     }
@@ -1380,10 +1383,10 @@ class _AgentListPageState extends State<AgentListPage>
     } catch (error) {
       debugPrint('Gagal membuka chat WhatsApp agen: $error');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst('Exception: ', '')),
-        ),
+      showAppToast(
+        context,
+        error.toString().replaceFirst('Exception: ', ''),
+        type: AppToastType.error,
       );
     }
   }
@@ -1800,8 +1803,10 @@ class _AgentListPageState extends State<AgentListPage>
     final location = _agentCoordinates(agent);
 
     if (location == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Koordinat lokasi agen belum tersedia.')),
+      showAppToast(
+        context,
+        'Koordinat lokasi agen belum tersedia.',
+        type: AppToastType.warning,
       );
       return;
     }
@@ -2131,15 +2136,12 @@ class _AgentListPageState extends State<AgentListPage>
 
                                     if (!dialogContext.mounted) return;
 
-                                    ScaffoldMessenger.of(dialogContext)
-                                        .showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Koordinat berhasil disalin.',
-                                            ),
-                                            duration: Duration(seconds: 2),
-                                          ),
-                                        );
+                                    showAppToast(
+                                      dialogContext,
+                                      'Koordinat berhasil disalin.',
+                                      type: AppToastType.success,
+                                      showDuration: const Duration(seconds: 2),
+                                    );
                                   },
                                   icon: const Icon(
                                     Icons.copy_rounded,
@@ -2164,14 +2166,10 @@ class _AgentListPageState extends State<AgentListPage>
                                 if (!dialogContext.mounted) return;
 
                                 if (address.startsWith('Alamat ')) {
-                                  ScaffoldMessenger.of(
+                                  showAppToast(
                                     dialogContext,
-                                  ).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Alamat belum tersedia untuk disalin.',
-                                      ),
-                                    ),
+                                    'Alamat belum tersedia untuk disalin.',
+                                    type: AppToastType.warning,
                                   );
                                   return;
                                 }
@@ -2182,12 +2180,10 @@ class _AgentListPageState extends State<AgentListPage>
 
                                 if (!dialogContext.mounted) return;
 
-                                ScaffoldMessenger.of(
+                                showAppToast(
                                   dialogContext,
-                                ).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Alamat berhasil disalin.'),
-                                  ),
+                                  'Alamat berhasil disalin.',
+                                  type: AppToastType.success,
                                 );
                               },
                               icon: const Icon(Icons.copy_rounded),
@@ -2298,12 +2294,10 @@ class _AgentListPageState extends State<AgentListPage>
   Future<void> _showAgentLocation(Map<String, dynamic> agent) async {
     final location = _agentCoordinates(agent);
     if (location == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Lokasi agen belum tersedia atau belum aktif tracking.',
-          ),
-        ),
+      showAppToast(
+        context,
+        'Lokasi agen belum tersedia atau belum aktif tracking.',
+        type: AppToastType.warning,
       );
       return;
     }
@@ -2453,12 +2447,10 @@ class _AgentListPageState extends State<AgentListPage>
             }
           }
           if (requestedAgent == null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Agen tersebut tidak ditemukan di daftar cabang.',
-                ),
-              ),
+            showAppToast(
+              context,
+              'Agen tersebut tidak ditemukan di daftar cabang.',
+              type: AppToastType.warning,
             );
             return;
           }
