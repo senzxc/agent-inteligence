@@ -3342,6 +3342,89 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                     initialDate: _selectedDate,
                     firstDate: _dateRangeStart,
                     lastDate: lastDate,
+                    builder: (context, child) {
+                      final theme = Theme.of(context);
+                      return Theme(
+                        data: theme.copyWith(
+                          colorScheme: theme.colorScheme.copyWith(
+                            primary: _primary,
+                            onPrimary: Colors.white,
+                            surface: Colors.white,
+                            onSurface: _textPrimary,
+                          ),
+                          datePickerTheme: DatePickerThemeData(
+                            backgroundColor: Colors.white,
+                            surfaceTintColor: Colors.white,
+                            headerBackgroundColor: _primary,
+                            headerForegroundColor: Colors.white,
+                            headerHeadlineStyle: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                            ),
+                            headerHelpStyle: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            weekdayStyle: const TextStyle(
+                              color: _textSecondary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            dayStyle: const TextStyle(
+                              color: _textPrimary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            dayForegroundColor: WidgetStateProperty.resolveWith(
+                              (states) {
+                                if (states.contains(WidgetState.selected)) {
+                                  return Colors.white;
+                                }
+                                return _textPrimary;
+                              },
+                            ),
+                            dayBackgroundColor: WidgetStateProperty.resolveWith(
+                              (states) {
+                                if (states.contains(WidgetState.selected)) {
+                                  return _primary;
+                                }
+                                return Colors.transparent;
+                              },
+                            ),
+                            todayForegroundColor:
+                                WidgetStateProperty.resolveWith((states) {
+                                  if (states.contains(WidgetState.selected)) {
+                                    return Colors.white;
+                                  }
+                                  return _primary;
+                                }),
+                            todayBackgroundColor:
+                                WidgetStateProperty.resolveWith((states) {
+                                  if (states.contains(WidgetState.selected)) {
+                                    return _primary;
+                                  }
+                                  return const Color(0xFFEAF3FF);
+                                }),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            elevation: 12,
+                            dividerColor: const Color(0xFFE2E8F0),
+                            cancelButtonStyle: TextButton.styleFrom(
+                              foregroundColor: _textSecondary,
+                              textStyle: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            confirmButtonStyle: TextButton.styleFrom(
+                              foregroundColor: _primary,
+                              textStyle: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                        child: child!,
+                      );
+                    },
                   );
                   if (picked == null || !mounted) return;
                   await _datePageController.animateToPage(
