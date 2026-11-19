@@ -1126,6 +1126,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
           pageTitle: 'Tugas Saya',
           canManageTasks: true,
           canAddTasks: true,
+          showAgentProfile: false,
         ),
       ),
     );
@@ -1218,6 +1219,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
               agent: agent,
               canManageTasks: !['KD', 'AD', 'AM', 'AS'].contains(_agencyRole),
               canAddTasks: false,
+              showAgentProfile: ['KD', 'AD'].contains(_agencyRole),
             ),
           ),
         );

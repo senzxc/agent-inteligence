@@ -795,7 +795,8 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
   void _openAllTasks() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => AgentTaskPage(agent: widget.user),
+        builder: (_) =>
+            AgentTaskPage(agent: widget.user, showAgentProfile: false),
       ),
     );
   }
