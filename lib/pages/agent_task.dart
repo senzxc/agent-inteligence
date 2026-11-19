@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../utils/agency_role.dart';
 import '../widgets/agent_details_dialog.dart';
+import '../widgets/app_toast.dart';
 import '../widgets/agent_profile_photo.dart';
 
 enum _TaskSortField { deadline, createdAt }
@@ -220,7 +221,7 @@ class AgentTaskPage extends StatefulWidget {
   const AgentTaskPage({
     super.key,
     required this.agent,
-    this.pageTitle = 'Tugas Agen',
+    this.pageTitle = 'Tugas Saya',
     this.canManageTasks = true,
     this.canAddTasks = true,
     this.showAgentProfile = false,
@@ -757,13 +758,19 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
       first.month == second.month &&
       first.day == second.day;
 
-  bool _taskMatchesSelectedDate(Map<String, dynamic> task) {
+  bool _taskMatchesDate(Map<String, dynamic> task, DateTime date) {
     final deadline = _taskDeadlineDate(task);
     if (deadline == null) {
-      return _isSameDate(_selectedDate, DateTime.now());
+      return _isSameDate(date, DateTime.now());
     }
-    return _isSameDate(deadline, _selectedDate);
+    return _isSameDate(deadline, date);
   }
+
+  bool _taskMatchesSelectedDate(Map<String, dynamic> task) =>
+      _taskMatchesDate(task, _selectedDate);
+
+  bool _hasTasksOnDate(DateTime date) =>
+      _tasks.any((task) => _taskMatchesDate(task, date));
 
   DateTime? _taskDeadlineDate(Map<String, dynamic> task) {
     final raw = (task['tenggat'] ?? task['deadline'] ?? '').toString().trim();
@@ -2342,7 +2349,10 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
         .where((task) => _selectedTaskIds.contains(_taskId(task)))
         .toList();
     if (selectedTasks.isEmpty) {
-      _showMessage('Pilih setidaknya satu tugas untuk dihapus.', isError: true);
+      _showMessage(
+        'Pilih setidaknya satu tugas untuk dihapus.',
+        isWarning: true,
+      );
       return;
     }
 
@@ -2392,20 +2402,19 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
     }
   }
 
-  void _showMessage(String message, {bool isError = false}) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    if (messenger == null) {
-      debugPrint('Tidak dapat menampilkan pesan tugas: $message');
-      return;
-    }
-
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError
-            ? Colors.red.shade700
-            : const Color(0xFF15803D),
-      ),
+  void _showMessage(
+    String message, {
+    bool isError = false,
+    bool isWarning = false,
+  }) {
+    showAppToast(
+      context,
+      message,
+      type: isError
+          ? AppToastType.error
+          : isWarning
+          ? AppToastType.warning
+          : AppToastType.success,
     );
   }
 
@@ -3468,6 +3477,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
               itemBuilder: (context, index) {
                 final date = _dateForIndex(index);
                 final isSelected = _isSameDate(date, _selectedDate);
+                final hasTasks = _hasTasksOnDate(date);
                 return AnimatedBuilder(
                   animation: _datePageController,
                   builder: (context, child) =>
@@ -3515,6 +3525,21 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
                                 ),
+                              ),
+                              const SizedBox(height: 4),
+                              SizedBox(
+                                width: 5,
+                                height: 5,
+                                child: hasTasks
+                                    ? DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? _primary
+                                              : const Color(0xFF7FA6D7),
+                                          shape: BoxShape.circle,
+                                        ),
+                                      )
+                                    : null,
                               ),
                             ],
                           ),
@@ -4021,16 +4046,21 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SizedBox(
-                          height: 40,
+                          height: 28,
                           child: Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
                               _taskDeadlineTime(task) ?? '--:--',
                               maxLines: 1,
                               style: const TextStyle(
-                                color: _primary,
+                                color: cupertino.Color.fromARGB(
+                                  255,
+                                  48,
+                                  48,
+                                  48,
+                                ),
                                 fontSize: 16,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
@@ -4073,18 +4103,47 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             Expanded(
-                              child: Text(
-                                _taskTitle(task),
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: _textPrimary,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  height: 1.3,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _taskTitle(task),
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: _textPrimary,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.schedule_rounded,
+                                        color: _textSecondary,
+                                        size: 13,
+                                      ),
+                                      const SizedBox(width: 5),
+                                      Expanded(
+                                        child: Text(
+                                          'Dibuat pada ${_taskCreatedAt(task)}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: _textSecondary,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
                             ),
                             if (widget.canManageTasks)
@@ -4162,29 +4221,6 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                   ),
                                 ],
                               ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.schedule_rounded,
-                              color: _textSecondary,
-                              size: 13,
-                            ),
-                            const SizedBox(width: 5),
-                            Expanded(
-                              child: Text(
-                                'Dibuat pada ${_taskCreatedAt(task)}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: _textSecondary,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
                           ],
                         ),
                         if (_taskDescription(task).isNotEmpty) ...[
