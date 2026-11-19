@@ -1966,6 +1966,9 @@ app.post(
             const tenggat = req.body.tenggat
                 ? String(req.body.tenggat).trim()
                 : null;
+            const tenggatJam = req.body.tenggatJam == null
+                ? null
+                : String(req.body.tenggatJam).trim();
 
             if (!agentId || !judul) {
                 return res.status(400).json({
@@ -1998,6 +2001,13 @@ app.post(
                 });
             }
 
+            if (tenggatJam && !/^([01]\d|2[0-3]):[0-5]\d$/.test(tenggatJam)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Format jam tenggat harus HH:mm (24 jam)',
+                });
+            }
+
             const tasks = await readTasks();
             const now = new Date().toISOString();
 
@@ -2007,6 +2017,7 @@ app.post(
                 judul,
                 deskripsi,
                 tenggat,
+                tenggatJam,
                 status: 'Belum dimulai',
                 createdBy: String(
                     getAuthenticatedUserId(req.authUser) ?? ''
@@ -2051,6 +2062,9 @@ app.patch(
             const judul = String(req.body.judul ?? '').trim();
             const deskripsi = String(req.body.deskripsi ?? '').trim();
             const tenggat = String(req.body.tenggat ?? '').trim();
+            const tenggatJam = req.body.tenggatJam == null
+                ? null
+                : String(req.body.tenggatJam).trim();
 
             if (!judul) {
                 return res.status(400).json({
@@ -2080,6 +2094,13 @@ app.patch(
                 });
             }
 
+            if (tenggatJam && !/^([01]\d|2[0-3]):[0-5]\d$/.test(tenggatJam)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Format jam tenggat harus HH:mm (24 jam)',
+                });
+            }
+
             const tasks = await readTasks();
             const index = tasks.findIndex(task => task.id === taskId);
 
@@ -2095,6 +2116,7 @@ app.patch(
                 judul,
                 deskripsi,
                 tenggat,
+                ...(tenggatJam !== null ? { tenggatJam } : {}),
                 updatedAt: new Date().toISOString(),
             };
             completeOverdueTasks([tasks[index]]);
