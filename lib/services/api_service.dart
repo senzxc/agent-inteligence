@@ -432,11 +432,17 @@ class ApiService {
     required String judul,
     required String deskripsi,
     required String tenggat,
+    required String tenggatJam,
   }) {
     return _trackingRequest(
       'POST',
       '/api/agents/${Uri.encodeComponent(agentId)}/tasks',
-      body: {'judul': judul, 'deskripsi': deskripsi, 'tenggat': tenggat},
+      body: {
+        'judul': judul,
+        'deskripsi': deskripsi,
+        'tenggat': tenggat,
+        'tenggatJam': tenggatJam,
+      },
     );
   }
 
@@ -446,11 +452,17 @@ class ApiService {
     required String judul,
     required String deskripsi,
     required String tenggat,
+    required String tenggatJam,
   }) {
     return _trackingRequest(
       'PATCH',
       '/api/tasks/${Uri.encodeComponent(taskId)}',
-      body: {'judul': judul, 'deskripsi': deskripsi, 'tenggat': tenggat},
+      body: {
+        'judul': judul,
+        'deskripsi': deskripsi,
+        'tenggat': tenggat,
+        'tenggatJam': tenggatJam,
+      },
     );
   }
 
