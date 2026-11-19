@@ -230,6 +230,182 @@ class AgentTaskPage extends StatefulWidget {
   State<AgentTaskPage> createState() => _AgentTaskPageState();
 }
 
+class _DeadlineTimeWheelPicker extends StatefulWidget {
+  const _DeadlineTimeWheelPicker({
+    required this.deadlineDate,
+    required this.initialTime,
+    required this.earliestTime,
+    required this.onChanged,
+  });
+
+  final DateTime deadlineDate;
+  final TimeOfDay initialTime;
+  final DateTime? earliestTime;
+  final ValueChanged<DateTime> onChanged;
+
+  @override
+  State<_DeadlineTimeWheelPicker> createState() =>
+      _DeadlineTimeWheelPickerState();
+}
+
+class _DeadlineTimeWheelPickerState extends State<_DeadlineTimeWheelPicker> {
+  late int _hour;
+  late int _minute;
+  late FixedExtentScrollController _hourController;
+
+  int get _firstHour => widget.earliestTime?.hour ?? 0;
+
+  int get _firstMinute =>
+      widget.earliestTime != null && _hour == widget.earliestTime!.hour
+      ? widget.earliestTime!.minute
+      : 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _hour = widget.initialTime.hour.clamp(_firstHour, 23).toInt();
+    _minute = widget.initialTime.minute.clamp(_firstMinute, 59).toInt();
+    _hourController = FixedExtentScrollController(
+      initialItem: _hour - _firstHour,
+    );
+  }
+
+  @override
+  void dispose() {
+    _hourController.dispose();
+    super.dispose();
+  }
+
+  void _emitChanged() {
+    widget.onChanged(
+      DateTime(
+        widget.deadlineDate.year,
+        widget.deadlineDate.month,
+        widget.deadlineDate.day,
+        _hour,
+        _minute,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final firstMinute = _firstMinute;
+    return Row(
+      children: [
+        Expanded(
+          child: cupertino.CupertinoPicker(
+            scrollController: _hourController,
+            itemExtent: 36,
+            backgroundColor: Colors.white,
+            onSelectedItemChanged: (index) {
+              final hour = _firstHour + index;
+              final firstAllowedMinute =
+                  widget.earliestTime != null &&
+                      hour == widget.earliestTime!.hour
+                  ? widget.earliestTime!.minute
+                  : 0;
+              setState(() {
+                _hour = hour;
+                if (_minute < firstAllowedMinute) {
+                  _minute = firstAllowedMinute;
+                }
+              });
+              _emitChanged();
+            },
+            children: List.generate(
+              24 - _firstHour,
+              (index) => Center(
+                child: Text(
+                  (_firstHour + index).toString().padLeft(2, '0'),
+                  style: const TextStyle(
+                    color: Color(0xFF1E293B),
+                    fontSize: 22,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const Text(
+          ':',
+          style: TextStyle(
+            color: Color(0xFF1E293B),
+            fontSize: 22,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Expanded(
+          child: _DeadlineMinuteWheel(
+            key: ValueKey(firstMinute),
+            firstMinute: firstMinute,
+            initialMinute: _minute,
+            onChanged: (minute) {
+              setState(() => _minute = minute);
+              _emitChanged();
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DeadlineMinuteWheel extends StatefulWidget {
+  const _DeadlineMinuteWheel({
+    super.key,
+    required this.firstMinute,
+    required this.initialMinute,
+    required this.onChanged,
+  });
+
+  final int firstMinute;
+  final int initialMinute;
+  final ValueChanged<int> onChanged;
+
+  @override
+  State<_DeadlineMinuteWheel> createState() => _DeadlineMinuteWheelState();
+}
+
+class _DeadlineMinuteWheelState extends State<_DeadlineMinuteWheel> {
+  late FixedExtentScrollController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = FixedExtentScrollController(
+      initialItem: widget.initialMinute - widget.firstMinute,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return cupertino.CupertinoPicker(
+      scrollController: _controller,
+      itemExtent: 36,
+      backgroundColor: Colors.white,
+      onSelectedItemChanged: (index) {
+        widget.onChanged(widget.firstMinute + index);
+      },
+      children: List.generate(
+        60 - widget.firstMinute,
+        (index) => Center(
+          child: Text(
+            (widget.firstMinute + index).toString().padLeft(2, '0'),
+            style: const TextStyle(color: Color(0xFF1E293B), fontSize: 22),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AgentTaskPageState extends State<AgentTaskPage> {
   static const Color _pageStart = Color(0xFFF8FBFF);
   static const Color _pageEnd = Color(0xFFEAF3FF);
@@ -2240,17 +2416,8 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   }) {
     final now = DateTime.now();
     final isToday = _isSameDate(deadlineDate, now);
-    final minimumDate = isToday
+    final earliestAllowedTime = isToday
         ? DateTime(now.year, now.month, now.day, now.hour, now.minute)
-        : null;
-    final maximumDate = isToday
-        ? DateTime(
-            deadlineDate.year,
-            deadlineDate.month,
-            deadlineDate.day,
-            23,
-            59,
-          )
         : null;
     var selectedDateTime = DateTime(
       deadlineDate.year,
@@ -2259,8 +2426,9 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
       initialTime.hour,
       initialTime.minute,
     );
-    if (minimumDate != null && selectedDateTime.isBefore(minimumDate)) {
-      selectedDateTime = minimumDate;
+    if (earliestAllowedTime != null &&
+        selectedDateTime.isBefore(earliestAllowedTime)) {
+      selectedDateTime = earliestAllowedTime;
     }
     var selectedTime = TimeOfDay.fromDateTime(selectedDateTime);
 
@@ -2311,15 +2479,11 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                   data: const cupertino.CupertinoThemeData(
                     primaryColor: _primary,
                   ),
-                  child: cupertino.CupertinoDatePicker(
-                    mode: cupertino.CupertinoDatePickerMode.time,
-                    initialDateTime: selectedDateTime,
-                    minimumDate: minimumDate,
-                    maximumDate: maximumDate,
-                    use24hFormat: true,
-                    minuteInterval: 1,
-                    backgroundColor: Colors.white,
-                    onDateTimeChanged: (value) {
+                  child: _DeadlineTimeWheelPicker(
+                    deadlineDate: deadlineDate,
+                    initialTime: selectedTime,
+                    earliestTime: earliestAllowedTime,
+                    onChanged: (value) {
                       selectedTime = TimeOfDay.fromDateTime(value);
                     },
                   ),
