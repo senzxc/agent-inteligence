@@ -27,6 +27,7 @@ import 'utils/agency_role.dart';
 import 'utils/dashboard_route_observer.dart';
 import 'utils/kantor_type.dart';
 import 'widgets/agent_profile_avatar.dart';
+import 'widgets/app_toast.dart';
 
 // import 'package:lottie/lottie.dart';
 
@@ -422,31 +423,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoggingIn = false;
 
   void _showLoginError(String message) {
-    showToast(
-      context: context,
-      location: ToastLocation.topRight,
-      dismissible: false,
-      curve: Curves.easeOutCubic,
-      entryDuration: const Duration(milliseconds: 500),
-      showDuration: const Duration(seconds: 3),
-      builder: (context, overlay) {
-        return SurfaceCard(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                LucideIcons.circleAlert,
-                size: 18,
-                color: Theme.of(context).colorScheme.destructive,
-              ),
-              const SizedBox(width: 8),
-              Flexible(child: Text(message)),
-            ],
-          ),
-        );
-      },
-    );
+    showAppToast(context, message, type: AppToastType.error);
   }
 
   Future<void> _handleLogin() async {
@@ -593,16 +570,10 @@ class _LoginPageState extends State<LoginPage> {
                           alignment: Alignment.centerRight,
                           child: GestureDetector(
                             onTap: () {
-                              showToast(
-                                context: context,
-                                builder: (context, overlay) {
-                                  return const SurfaceCard(
-                                    child: Text(
-                                      "Fitur lupa password akan segera hadir.",
-                                    ),
-                                  );
-                                },
-                                location: ToastLocation.topRight,
+                              showAppToast(
+                                context,
+                                'Fitur lupa password akan segera hadir.',
+                                type: AppToastType.info,
                               );
                             },
                             child: const Text(
@@ -800,15 +771,11 @@ void _showLogoutDialog(BuildContext context) {
                                             .stopTracking();
                                       } catch (error) {
                                         if (!context.mounted) return;
-                                        material.ScaffoldMessenger.of(
+                                        showAppToast(
                                           context,
-                                        ).showSnackBar(
-                                          material.SnackBar(
-                                            content: Text(
-                                              'Gagal menghentikan tracking: '
-                                              '${error.toString().replaceFirst('Exception: ', '')}',
-                                            ),
-                                          ),
+                                          'Gagal menghentikan tracking: '
+                                          '${error.toString().replaceFirst('Exception: ', '')}',
+                                          type: AppToastType.error,
                                         );
                                         return;
                                       }

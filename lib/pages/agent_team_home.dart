@@ -6,6 +6,8 @@ import '../services/api_service.dart';
 import '../services/gps_tracking_service.dart';
 import '../utils/agency_role.dart';
 import '../utils/dashboard_route_observer.dart';
+import '../utils/task_date_groups.dart';
+import '../widgets/app_toast.dart';
 import '../widgets/agent_marker.dart';
 import '../widgets/agent_profile_avatar.dart';
 import 'agent_profile_edit.dart';
@@ -372,10 +374,14 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
         : 'Belum dimulai';
   }
 
-  List<Map<String, dynamic>> get _unfinishedMyTasks => _myTasks
-      .where((task) => _myTaskStatus(task) != 'Selesai')
-      .take(5)
-      .toList();
+  TaskDateGroups get _myTaskDateGroups => groupTasksByDeadline(
+    _myTasks,
+    today: DateTime.now(),
+    isCompleted: (task) => _myTaskStatus(task) == 'Selesai',
+  );
+
+  List<Map<String, dynamic>> get _todayMyTasks => _myTaskDateGroups.today;
+  List<Map<String, dynamic>> get _upcomingMyTasks => _myTaskDateGroups.upcoming;
 
   String _myTaskId(Map<String, dynamic> task) {
     return (task['id'] ??
@@ -492,6 +498,11 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
 
       final taskId = _myTaskId(task);
       if (taskId.isEmpty) {
+        showAppToast(
+          context,
+          'ID tugas tidak ditemukan pada respons server.',
+          type: AppToastType.error,
+        );
         setDialogState(() {
           statusError = 'ID tugas tidak ditemukan pada respons server.';
         });
@@ -557,10 +568,21 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
             }
           }
         });
+        showAppToast(
+          context,
+          'Status tugas berhasil diubah menjadi $nextStatus.',
+          type: AppToastType.success,
+        );
       } catch (error) {
         if (!mounted || !dialogContext.mounted) return;
+        final message = error.toString().replaceFirst('Exception: ', '');
+        showAppToast(
+          context,
+          'Gagal memperbarui status tugas: $message',
+          type: AppToastType.error,
+        );
         setDialogState(() {
-          statusError = error.toString().replaceFirst('Exception: ', '');
+          statusError = message;
         });
       } finally {
         if (mounted && dialogContext.mounted) {
@@ -920,6 +942,64 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMyTaskSection({
+    required String title,
+    required List<Map<String, dynamic>> tasks,
+    required String emptyMessage,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: _ink,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF3FF),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${tasks.length}',
+                style: const TextStyle(
+                  color: _primary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (tasks.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE5EDF7)),
+            ),
+            child: Text(
+              emptyMessage,
+              style: const TextStyle(color: _muted, fontSize: 12),
+            ),
+          )
+        else
+          for (final task in tasks) _buildMyTaskCard(task),
+      ],
     );
   }
 
@@ -1585,8 +1665,10 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
         latitude > 90 ||
         longitude < -180 ||
         longitude > 180) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Koordinat lokasi agen belum tersedia.')),
+      showAppToast(
+        context,
+        'Koordinat lokasi agen belum tersedia.',
+        type: AppToastType.warning,
       );
       return;
     }
@@ -1842,11 +1924,11 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
                                 ClipboardData(text: coordinates),
                               );
                               if (!dialogContext.mounted) return;
-                              ScaffoldMessenger.of(dialogContext).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Koordinat berhasil disalin.'),
-                                  duration: Duration(seconds: 2),
-                                ),
+                              showAppToast(
+                                dialogContext,
+                                'Koordinat berhasil disalin.',
+                                type: AppToastType.success,
+                                showDuration: const Duration(seconds: 2),
                               );
                             },
                             icon: const Icon(
@@ -1871,21 +1953,19 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
                         final address = await addressFuture;
                         if (!dialogContext.mounted) return;
                         if (address.startsWith('Alamat ')) {
-                          ScaffoldMessenger.of(dialogContext).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Alamat belum tersedia untuk disalin.',
-                              ),
-                            ),
+                          showAppToast(
+                            dialogContext,
+                            'Alamat belum tersedia untuk disalin.',
+                            type: AppToastType.warning,
                           );
                           return;
                         }
                         await Clipboard.setData(ClipboardData(text: address));
                         if (!dialogContext.mounted) return;
-                        ScaffoldMessenger.of(dialogContext).showSnackBar(
-                          const SnackBar(
-                            content: Text('Alamat berhasil disalin.'),
-                          ),
+                        showAppToast(
+                          dialogContext,
+                          'Alamat berhasil disalin.',
+                          type: AppToastType.success,
                         );
                       },
                       icon: const Icon(Icons.copy_rounded),
@@ -2042,13 +2122,11 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
       await AgentGpsTrackingService.instance.stopTracking();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Gagal menghentikan tracking: '
-            '${error.toString().replaceFirst('Exception: ', '')}',
-          ),
-        ),
+      showAppToast(
+        context,
+        'Gagal menghentikan tracking: '
+        '${error.toString().replaceFirst('Exception: ', '')}',
+        type: AppToastType.error,
       );
       return;
     }
@@ -2357,14 +2435,30 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
                       actionLabel: 'Coba lagi',
                       onPressed: _loadMyTasks,
                     )
-                  else if (_unfinishedMyTasks.isEmpty)
-                    const _StatusCard(
+                  else if (_todayMyTasks.isEmpty && _upcomingMyTasks.isEmpty)
+                    _StatusCard(
                       icon: Icons.assignment_outlined,
-                      message: 'Belum ada tugas pribadi yang belum selesai.',
+                      message: _myTasks.isEmpty
+                          ? 'Belum ada tugas pribadi.'
+                          : _myTasks.every(
+                              (task) => _myTaskStatus(task) == 'Selesai',
+                            )
+                          ? 'Semua tugas pribadi sudah selesai.'
+                          : 'Tidak ada tugas pribadi hari ini atau mendatang.',
                     )
-                  else
-                    for (final task in _unfinishedMyTasks)
-                      _buildMyTaskCard(task),
+                  else ...[
+                    _buildMyTaskSection(
+                      title: 'Tugas Hari Ini',
+                      tasks: _todayMyTasks,
+                      emptyMessage: 'Tidak ada tugas hari ini.',
+                    ),
+                    const SizedBox(height: 12),
+                    _buildMyTaskSection(
+                      title: 'Tugas Mendatang',
+                      tasks: _upcomingMyTasks,
+                      emptyMessage: 'Belum ada tugas untuk hari berikutnya.',
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   Row(
                     children: [

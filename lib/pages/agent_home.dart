@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/gps_tracking_service.dart';
 import '../utils/dashboard_route_observer.dart';
+import '../utils/task_date_groups.dart';
+import '../widgets/app_toast.dart';
 import '../widgets/agent_profile_avatar.dart';
 import 'agent_profile_edit.dart';
 import '../pages/agent_task.dart';
@@ -267,8 +269,18 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
     };
   }
 
-  List<Map<String, dynamic>> get _unfinishedTasks =>
-      _tasks.where((task) => _status(task) != 'Selesai').toList();
+  TaskDateGroups get _taskDateGroups => groupTasksByDeadline(
+    _tasks,
+    today: DateTime.now(),
+    isCompleted: (task) => _status(task) == 'Selesai',
+  );
+
+  List<Map<String, dynamic>> get _todayTasks => _taskDateGroups.today;
+  List<Map<String, dynamic>> get _upcomingTasks => _taskDateGroups.upcoming;
+  List<Map<String, dynamic>> get _activeUnfinishedTasks => [
+    ..._todayTasks,
+    ..._upcomingTasks,
+  ];
 
   String _title(Map<String, dynamic> task) {
     return (task['judul'] ?? task['title'] ?? 'Tugas tanpa judul').toString();
@@ -365,6 +377,11 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
 
       final taskId = _taskId(task);
       if (taskId.isEmpty) {
+        showAppToast(
+          context,
+          'ID tugas tidak ditemukan pada respons server.',
+          type: AppToastType.error,
+        );
         setDialogState(() {
           statusError = 'ID tugas tidak ditemukan pada respons server.';
         });
@@ -455,10 +472,21 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
             }
           }
         });
+        showAppToast(
+          context,
+          'Status tugas berhasil diubah menjadi $nextStatus.',
+          type: AppToastType.success,
+        );
       } catch (error) {
         if (!mounted || !dialogContext.mounted) return;
+        final message = error.toString().replaceFirst('Exception: ', '');
+        showAppToast(
+          context,
+          'Gagal memperbarui status tugas: $message',
+          type: AppToastType.error,
+        );
         setDialogState(() {
-          statusError = error.toString().replaceFirst('Exception: ', '');
+          statusError = message;
         });
       } finally {
         if (mounted && dialogContext.mounted) {
@@ -940,13 +968,11 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
       await AgentGpsTrackingService.instance.stopTracking();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Gagal menghentikan tracking: '
-            '${error.toString().replaceFirst('Exception: ', '')}',
-          ),
-        ),
+      showAppToast(
+        context,
+        'Gagal menghentikan tracking: '
+        '${error.toString().replaceFirst('Exception: ', '')}',
+        type: AppToastType.error,
       );
       return;
     }
@@ -1219,7 +1245,7 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
                     _isLoading
                         ? '…'
                         : _errorMessage == null
-                        ? '${_unfinishedTasks.length}'
+                        ? '${_activeUnfinishedTasks.length}'
                         : '—',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
@@ -1260,40 +1286,80 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
   }
 
   Widget _buildTaskHeader() {
-    return Row(
-      children: [
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: _openAllTasks,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFDCE8F5)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0D172033),
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
             children: [
-              Text(
-                'Tugas Saya',
-                style: TextStyle(
-                  color: _textPrimary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEAF3FF),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(Icons.checklist_rounded, color: _primary),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Tugas Saya',
+                      style: TextStyle(
+                        color: _textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Buat dan pantau progres tugasmu',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: _textSecondary, fontSize: 12),
+                    ),
+                  ],
                 ),
               ),
-              SizedBox(height: 4),
-              Text(
-                'Tugas terbaru yang kamu buat',
-                style: TextStyle(color: _textSecondary, fontSize: 12),
+              const SizedBox(width: 8),
+              const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Lihat semua',
+                    style: TextStyle(
+                      color: _primary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(width: 3),
+                  Icon(Icons.arrow_forward_rounded, color: _primary, size: 16),
+                ],
               ),
             ],
           ),
         ),
-        TextButton(
-          onPressed: _openAllTasks,
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Lihat semua', style: TextStyle(color: Colors.black)),
-              SizedBox(width: 3),
-              Icon(Icons.arrow_forward_rounded, size: 16),
-            ],
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -1345,8 +1411,9 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
       );
     }
 
-    final unfinishedTasks = _unfinishedTasks;
-    if (unfinishedTasks.isEmpty) {
+    final todayTasks = _todayTasks;
+    final upcomingTasks = _upcomingTasks;
+    if (todayTasks.isEmpty && upcomingTasks.isEmpty) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 28),
         decoration: BoxDecoration(
@@ -1359,7 +1426,11 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
             Icon(Icons.assignment_outlined, size: 42, color: Color(0xFF94A3B8)),
             SizedBox(height: 10),
             Text(
-              _tasks.isEmpty ? 'Belum ada tugas' : 'Semua tugas sudah selesai',
+              _tasks.isEmpty
+                  ? 'Belum ada tugas'
+                  : _tasks.every((task) => _status(task) == 'Selesai')
+                  ? 'Semua tugas sudah selesai'
+                  : 'Tidak ada tugas hari ini atau mendatang',
               style: TextStyle(
                 color: _textPrimary,
                 fontWeight: FontWeight.w700,
@@ -1370,7 +1441,9 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
             Text(
               _tasks.isEmpty
                   ? 'Tugas yang kamu buat akan muncul di sini.'
-                  : 'Tugas yang belum selesai akan muncul di sini.',
+                  : _tasks.every((task) => _status(task) == 'Selesai')
+                  ? 'Tugas yang belum selesai akan muncul di sini.'
+                  : 'Tugas dengan tenggat lampau tidak ditampilkan di beranda.',
               textAlign: TextAlign.center,
               style: TextStyle(color: _textSecondary, fontSize: 12),
             ),
@@ -1379,9 +1452,79 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
       );
     }
 
-    final recentTasks = unfinishedTasks.take(5).toList();
+    return Column(
+      children: [
+        _buildTaskSection(
+          title: 'Tugas Hari Ini',
+          tasks: todayTasks,
+          emptyMessage: 'Tidak ada tugas hari ini.',
+        ),
+        const SizedBox(height: 12),
+        _buildTaskSection(
+          title: 'Tugas Mendatang',
+          tasks: upcomingTasks,
+          emptyMessage: 'Belum ada tugas untuk hari berikutnya.',
+        ),
+      ],
+    );
+  }
 
-    return Column(children: recentTasks.map(_buildTaskCard).toList());
+  Widget _buildTaskSection({
+    required String title,
+    required List<Map<String, dynamic>> tasks,
+    required String emptyMessage,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: _textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF3FF),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${tasks.length}',
+                style: const TextStyle(
+                  color: _primary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (tasks.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE5EDF7)),
+            ),
+            child: Text(
+              emptyMessage,
+              style: const TextStyle(color: _textSecondary, fontSize: 12),
+            ),
+          )
+        else
+          for (final task in tasks) _buildTaskCard(task),
+      ],
+    );
   }
 
   Widget _buildTaskCard(Map<String, dynamic> task) {
