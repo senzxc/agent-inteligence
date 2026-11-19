@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../services/api_service.dart';
+import '../widgets/app_toast.dart';
 import '../widgets/profile_photo_cropper.dart';
 
 class AgentProfileEditPage extends StatefulWidget {
@@ -319,17 +320,20 @@ class _AgentProfileEditPageState extends State<AgentProfileEditPage> {
       }
 
       if (mounted) {
+        showAppToast(
+          context,
+          'Profil berhasil disimpan.',
+          type: AppToastType.success,
+        );
         Navigator.of(context).pop(Map<String, dynamic>.from(user));
       }
     } catch (error) {
       if (!mounted) return;
       final message = error.toString().replaceFirst('Exception: ', '');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Profil gagal disimpan: $message'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: const Color(0xFFB91C1C),
-        ),
+      showAppToast(
+        context,
+        'Profil gagal disimpan: $message',
+        type: AppToastType.error,
       );
     } finally {
       if (mounted) setState(() => _isSaving = false);
