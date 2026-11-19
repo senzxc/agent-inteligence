@@ -14,7 +14,7 @@ import '../services/api_service.dart';
 import '../utils/agency_role.dart';
 import '../utils/kantor_type.dart';
 import '../widgets/agent_marker.dart';
-import '../widgets/agent_profile_photo.dart';
+import '../widgets/agent_details_dialog.dart';
 import '../widgets/press_bounce.dart';
 import 'agent_task.dart';
 
@@ -204,6 +204,7 @@ class _AgentListPageState extends State<AgentListPage>
   String? _officeGeocodeError;
   Offset? _agentMenuTapPosition;
   bool _initialized = false;
+  bool _isHeadAgent = false;
   bool _didFocusRequestedAgent = false;
   String? _focusAgentId;
   String? _selectedMapAgentId;
@@ -301,6 +302,7 @@ class _AgentListPageState extends State<AgentListPage>
           .toUpperCase();
       _isHeadMarketing =
           appRole == 'HEAD_MARKETING' || agencyRole == 'KD' || levelUser == '1';
+      _isHeadAgent = appRole == 'HEAD_AGENT' || agencyRole == 'AD';
       _viewAllBranches =
           arguments['VIEW_ALL_BRANCHES'] == true && _isHeadMarketing;
       _showIndonesiaMapButton = arguments['SHOW_INDONESIA_MAP_BUTTON'] == true;
@@ -1595,6 +1597,7 @@ class _AgentListPageState extends State<AgentListPage>
           agent: agent,
           canManageTasks: _canManageAgentTasks,
           canAddTasks: _canAddTasks,
+          showAgentProfile: _isHeadAgent || _isHeadMarketing,
         ),
       ),
     );
@@ -1683,245 +1686,7 @@ class _AgentListPageState extends State<AgentListPage>
   }
 
   Future<void> _showAgentDetails(Map<String, dynamic> agent) {
-    final name = (agent['NAMA_AGEN'] ?? '-').toString();
-    final agentId = (agent['NOMOR_AGEN'] ?? agent['I_AGEN'] ?? '')
-        .toString()
-        .trim();
-    final photoFuture = agentId.isEmpty
-        ? Future<Uint8List?>.value()
-        : ApiService.getAgentProfilePhoto(agentId);
-    final agentNumber = (agent['NOMOR_AGEN'] ?? '-').toString();
-    final namaKantor = (agent['NAMA_KANTOR'] ?? '').toString().trim();
-    final kodeKantor = (agent['KODE_KANTOR'] ?? '').toString().trim();
-    final kantor = namaKantor.isNotEmpty
-        ? (kodeKantor.isNotEmpty ? '$namaKantor - ($kodeKantor)' : namaKantor)
-        : (kodeKantor.isNotEmpty ? kodeKantor : '-');
-    final tracking = agent['isTracking'] == true;
-    final alamat = (agent['ALAMAT'] ?? 'Belum tersedia').toString().trim();
-    final email = (agent['A_EMAIL'] ?? agent['EMAIL'] ?? 'Belum tersedia')
-        .toString()
-        .trim();
-    final phone = (agent['NOMOR_HP'] ?? 'Belum tersedia').toString().trim();
-    final jabatan = formatAgencyRole(
-      (agent['C_AGENCY_JABATAN'] ?? 'Belum tersedia').toString(),
-    );
-    final tanggalLahir = (agent['TANGGAL_LAHIR'] ?? 'Belum tersedia')
-        .toString()
-        .trim();
-    // final tanggalLisensi = (agent['TANGGAL_LISENSI'] ?? 'Belum tersedia')
-    //     .toString()
-    //     .trim();
-    final statusColor = tracking
-        ? const Color(0xFF15803D)
-        : const Color(0xFF64748B);
-
-    return showDialog<void>(
-      context: context,
-      builder: (dialogContext) => Dialog(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 520,
-            maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.86,
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(22, 22, 16, 22),
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFF0D47A1), Color(0xFF1B72D7)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      FutureBuilder<Uint8List?>(
-                        future: photoFuture,
-                        builder: (context, snapshot) {
-                          final photo = snapshot.data;
-                          return AgentProfilePhoto(
-                            photoBytes: photo,
-                            size: 54,
-                            circleThumbnail: true,
-                            semanticLabel: 'Perbesar foto profil $name',
-                            placeholder: Text(
-                              _agentInitials(name),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'PROFIL AGEN',
-                              style: TextStyle(
-                                color: Color(0xFFDCEBFF),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1.1,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              name,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 19,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Tutup',
-                        onPressed: () => Navigator.pop(dialogContext),
-                        icon: const Icon(Icons.close, color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-                Flexible(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 9,
-                          ),
-                          decoration: BoxDecoration(
-                            color: statusColor.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: statusColor.withValues(alpha: 0.2),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                tracking
-                                    ? Icons.radio_button_checked
-                                    : Icons.radio_button_off,
-                                size: 16,
-                                color: statusColor,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                tracking ? 'Sedang tracking' : 'Offline',
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        const Text(
-                          'INFORMASI AGEN',
-                          style: TextStyle(
-                            color: Color(0xFF64748B),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        _agentDetailTile(
-                          icon: Icons.badge_outlined,
-                          label: 'Nomor Agen',
-                          value: agentNumber,
-                        ),
-                        _agentDetailTile(
-                          icon: Icons.work_outline,
-                          label: 'Jabatan',
-                          value: jabatan,
-                        ),
-                        _agentDetailTile(
-                          icon: Icons.apartment_rounded,
-                          label: 'Kantor',
-                          value: kantor,
-                        ),
-                        _agentDetailTile(
-                          icon: Icons.location_on_outlined,
-                          label: 'Alamat',
-                          value: alamat.isEmpty ? 'Belum tersedia' : alamat,
-                        ),
-                        _agentDetailTile(
-                          icon: Icons.phone_outlined,
-                          label: 'Nomor HP',
-                          value: phone.isEmpty ? 'Belum tersedia' : phone,
-                        ),
-                        _agentDetailTile(
-                          icon: Icons.email_outlined,
-                          label: 'Email',
-                          value: email.isEmpty ? 'Belum tersedia' : email,
-                        ),
-                        _agentDetailTile(
-                          icon: Icons.cake_outlined,
-                          label: 'Tanggal Lahir',
-                          value: tanggalLahir,
-                        ),
-                        // _agentDetailTile(
-                        //   icon: Icons.verified_outlined,
-                        //   label: 'Tanggal Lisensi',
-                        //   value: tanggalLisensi,
-                        // ),
-                      ],
-                    ),
-                  ),
-                ),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    border: Border(top: BorderSide(color: Color(0xFFE8EEF6))),
-                  ),
-                  child: SizedBox(
-                    height: 46,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF1565C0),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: () => Navigator.pop(dialogContext),
-                      child: const Text('Tutup'),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+    return showAgentDetailsDialog(context, agent);
   }
 
   Future<String> _reverseGeocode(LatLng location) async {
@@ -2558,12 +2323,6 @@ class _AgentListPageState extends State<AgentListPage>
     _animationStartZoom = _mapController.camera.zoom;
     _animationTargetZoom = 16;
     _centerAnimationController.forward(from: 0);
-  }
-
-  String _agentInitials(Object? value) {
-    final name = (value ?? '').toString().trim();
-    if (name.isEmpty) return '??';
-    return name.characters.take(2).toString().toUpperCase();
   }
 
   Future<void> _loadAgents({bool showLoading = true}) async {
