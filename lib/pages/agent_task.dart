@@ -4046,7 +4046,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SizedBox(
-                          height: 28,
+                          height: 34,
                           child: Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
@@ -4059,8 +4059,8 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                   48,
                                   48,
                                 ),
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
@@ -4116,7 +4116,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                     style: const TextStyle(
                                       color: _textPrimary,
                                       fontSize: 16,
-                                      fontWeight: FontWeight.w600,
+                                      fontWeight: FontWeight.w700,
                                       height: 1.3,
                                     ),
                                   ),
