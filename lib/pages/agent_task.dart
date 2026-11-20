@@ -3469,95 +3469,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
               ),
               OutlinedButton.icon(
                 onPressed: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _selectedDate,
-                    firstDate: _dateRangeStart,
-                    lastDate: lastDate,
-                    builder: (context, child) {
-                      final theme = Theme.of(context);
-                      return Theme(
-                        data: theme.copyWith(
-                          colorScheme: theme.colorScheme.copyWith(
-                            primary: _primary,
-                            onPrimary: Colors.white,
-                            surface: Colors.white,
-                            onSurface: _textPrimary,
-                          ),
-                          datePickerTheme: DatePickerThemeData(
-                            backgroundColor: Colors.white,
-                            surfaceTintColor: Colors.white,
-                            headerBackgroundColor: _primary,
-                            headerForegroundColor: Colors.white,
-                            headerHeadlineStyle: const TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                            ),
-                            headerHelpStyle: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            weekdayStyle: const TextStyle(
-                              color: _textSecondary,
-                              fontWeight: FontWeight.w700,
-                            ),
-                            dayStyle: const TextStyle(
-                              color: _textPrimary,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            dayForegroundColor: WidgetStateProperty.resolveWith(
-                              (states) {
-                                if (states.contains(WidgetState.selected)) {
-                                  return Colors.white;
-                                }
-                                return _textPrimary;
-                              },
-                            ),
-                            dayBackgroundColor: WidgetStateProperty.resolveWith(
-                              (states) {
-                                if (states.contains(WidgetState.selected)) {
-                                  return _primary;
-                                }
-                                return Colors.transparent;
-                              },
-                            ),
-                            todayForegroundColor:
-                                WidgetStateProperty.resolveWith((states) {
-                                  if (states.contains(WidgetState.selected)) {
-                                    return Colors.white;
-                                  }
-                                  return _primary;
-                                }),
-                            todayBackgroundColor:
-                                WidgetStateProperty.resolveWith((states) {
-                                  if (states.contains(WidgetState.selected)) {
-                                    return _primary;
-                                  }
-                                  return const Color(0xFFEAF3FF);
-                                }),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                            elevation: 12,
-                            dividerColor: const Color(0xFFE2E8F0),
-                            cancelButtonStyle: TextButton.styleFrom(
-                              foregroundColor: _textSecondary,
-                              textStyle: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            confirmButtonStyle: TextButton.styleFrom(
-                              foregroundColor: _primary,
-                              textStyle: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ),
-                        child: child!,
-                      );
-                    },
-                  );
+                  final picked = await _showTaskDatePicker(lastDate);
                   if (picked == null || !mounted) return;
                   await _datePageController.animateToPage(
                     _dateIndexFor(picked),
@@ -3679,6 +3591,376 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
     );
   }
 
+  Future<DateTime?> _showTaskDatePicker(DateTime lastDate) {
+    var displayedMonth = _selectedDate.month;
+    var displayedYear = _selectedDate.year;
+    var selectedDate = _selectedDate;
+    var pickerView = 'calendar';
+    final firstYear = _dateRangeStart.year;
+    final lastYear = lastDate.year;
+    final yearPickerController = ScrollController(
+      initialScrollOffset: ((displayedYear - firstYear) ~/ 3) * 52.0,
+    );
+
+    return showDialog<DateTime>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final firstDayOfMonth = DateTime(displayedYear, displayedMonth, 1);
+          final leadingDays = firstDayOfMonth.weekday % 7;
+          final daysInMonth = DateTime(
+            displayedYear,
+            displayedMonth + 1,
+            0,
+          ).day;
+          final dayCount = ((leadingDays + daysInMonth + 6) ~/ 7) * 7;
+          final firstVisibleDate = DateTime(
+            displayedYear,
+            displayedMonth,
+            1 - leadingDays,
+          );
+          final today = _dateOnly(DateTime.now());
+          final weekdays = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+
+          return Dialog(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 24,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 15,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FBFF),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFDCE8F5)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _selectedDateTitle(selectedDate),
+                              style: const TextStyle(
+                                color: _textPrimary,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: const BoxDecoration(
+                              color: _primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.edit_calendar_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildCalendarDropdown(
+                            label: _monthName(displayedMonth),
+                            onPressed: () =>
+                                setDialogState(() => pickerView = 'month'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildCalendarDropdown(
+                            label: '$displayedYear',
+                            onPressed: () =>
+                                setDialogState(() => pickerView = 'year'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 13),
+                    if (pickerView == 'month')
+                      SizedBox(
+                        height: 248,
+                        child: _buildCalendarChoiceGrid(
+                          values: List.generate(12, (index) => index + 1),
+                          selectedValue: displayedMonth,
+                          labelFor: _monthName,
+                          onSelected: (month) {
+                            setDialogState(() {
+                              displayedMonth = month;
+                              pickerView = 'calendar';
+                            });
+                          },
+                        ),
+                      )
+                    else if (pickerView == 'year')
+                      SizedBox(
+                        height: 248,
+                        child: Scrollbar(
+                          controller: yearPickerController,
+                          thumbVisibility: true,
+                          child: _buildCalendarChoiceGrid(
+                            values: List.generate(
+                              lastYear - firstYear + 1,
+                              (index) => firstYear + index,
+                            ),
+                            selectedValue: displayedYear,
+                            labelFor: (year) => '$year',
+                            controller: yearPickerController,
+                            onSelected: (year) {
+                              setDialogState(() {
+                                displayedYear = year;
+                                pickerView = 'calendar';
+                              });
+                            },
+                          ),
+                        ),
+                      )
+                    else ...[
+                      Row(
+                        children: weekdays
+                            .map(
+                              (weekday) => Expanded(
+                                child: Center(
+                                  child: Text(
+                                    weekday,
+                                    style: const TextStyle(
+                                      color: _textSecondary,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const SizedBox(height: 7),
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: dayCount,
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 7,
+                              mainAxisExtent: 48,
+                            ),
+                        itemBuilder: (context, index) {
+                          final date = firstVisibleDate.add(
+                            Duration(days: index),
+                          );
+                          final isSelected = _isSameDate(date, selectedDate);
+                          final isCurrentMonth = date.month == displayedMonth;
+                          final isToday = _isSameDate(date, today);
+                          final isInRange =
+                              !date.isBefore(_dateRangeStart) &&
+                              !date.isAfter(lastDate);
+                          final hasTasks = _hasTasksOnDate(date);
+                          final textColor = isSelected
+                              ? Colors.white
+                              : !isInRange || !isCurrentMonth
+                              ? const Color(0xFFB8C5D4)
+                              : _textPrimary;
+                          final markerColor = isSelected
+                              ? Colors.white
+                              : !isInRange || !isCurrentMonth
+                              ? _primary.withValues(alpha: 0.35)
+                              : _primary;
+
+                          return Center(
+                            child: AspectRatio(
+                              aspectRatio: 1,
+                              child: InkWell(
+                                onTap: isInRange
+                                    ? () {
+                                        setDialogState(() {
+                                          selectedDate = date;
+                                          displayedMonth = date.month;
+                                          displayedYear = date.year;
+                                        });
+                                      }
+                                    : null,
+                                customBorder: const CircleBorder(),
+                                child: Ink(
+                                  decoration: BoxDecoration(
+                                    color: isSelected ? _primary : null,
+                                    shape: BoxShape.circle,
+                                    border: isToday && !isSelected
+                                        ? Border.all(
+                                            color: _primary.withValues(
+                                              alpha: 0.45,
+                                            ),
+                                          )
+                                        : null,
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        '${date.day}',
+                                        style: TextStyle(
+                                          color: textColor,
+                                          fontSize: 14,
+                                          fontWeight: isSelected || isToday
+                                              ? FontWeight.w800
+                                              : FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Container(
+                                        width: 4,
+                                        height: 4,
+                                        decoration: BoxDecoration(
+                                          color: hasTasks ? markerColor : null,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          style: TextButton.styleFrom(
+                            foregroundColor: _textSecondary,
+                            minimumSize: const Size(72, 42),
+                          ),
+                          child: const Text('Batal'),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton(
+                          onPressed: () =>
+                              Navigator.of(dialogContext).pop(selectedDate),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _primary,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(72, 42),
+                          ),
+                          child: const Text('OK'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    ).whenComplete(yearPickerController.dispose);
+  }
+
+  Widget _buildCalendarDropdown({
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: _textPrimary,
+        backgroundColor: Colors.white,
+        minimumSize: const Size.fromHeight(46),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        side: const BorderSide(color: Color(0xFFDCE8F5)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+            ),
+          ),
+          const Icon(Icons.keyboard_arrow_down_rounded, color: _primary),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCalendarChoiceGrid({
+    required List<int> values,
+    required int selectedValue,
+    required String Function(int) labelFor,
+    required ValueChanged<int> onSelected,
+    ScrollController? controller,
+  }) {
+    return GridView.builder(
+      controller: controller,
+      padding: const EdgeInsets.fromLTRB(2, 2, 10, 2),
+      itemCount: values.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        mainAxisExtent: 44,
+      ),
+      itemBuilder: (context, index) {
+        final value = values[index];
+        final isSelected = value == selectedValue;
+
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => onSelected(value),
+            borderRadius: BorderRadius.circular(12),
+            child: Ink(
+              decoration: BoxDecoration(
+                color: isSelected ? _primary : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected ? _primary : const Color(0xFFDCE8F5),
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  labelFor(value),
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : _textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   String _taskPeriodLabel(TaskDatePeriod period) => switch (period) {
     TaskDatePeriod.past => 'Lampau',
     TaskDatePeriod.today => 'Hari ini',
@@ -3720,7 +4002,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
               const SizedBox(width: 8),
               _buildTaskPeriodButton(TaskDatePeriod.today),
               const SizedBox(width: 8),
-               _buildTaskPeriodButton(TaskDatePeriod.upcoming),
+              _buildTaskPeriodButton(TaskDatePeriod.upcoming),
               const SizedBox(width: 8),
               _buildTaskPeriodButton(TaskDatePeriod.all),
             ],
@@ -3754,7 +4036,10 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
           decoration: BoxDecoration(
             gradient: isSelected
                 ? const LinearGradient(
-                    colors: [Color(0xFF1565C0), cupertino.Color.fromARGB(255, 52, 159, 247)],
+                    colors: [
+                      Color(0xFF1565C0),
+                      cupertino.Color.fromARGB(255, 48, 154, 240),
+                    ],
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
                   )
