@@ -3,6 +3,40 @@ typedef TaskDateGroups = ({
   List<Map<String, dynamic>> upcoming,
 });
 
+enum TaskDatePeriod { past, today, upcoming, all }
+
+int compareTasksByNewestCreation(
+  Map<String, dynamic> left,
+  Map<String, dynamic> right,
+) {
+  final leftDate = _taskCreatedTimestamp(left);
+  final rightDate = _taskCreatedTimestamp(right);
+  if (leftDate == null && rightDate != null) return 1;
+  if (leftDate != null && rightDate == null) return -1;
+  if (leftDate == null || rightDate == null) return 0;
+  return rightDate.compareTo(leftDate);
+}
+
+bool taskDateIsInPeriod(
+  DateTime? taskDate,
+  TaskDatePeriod period, {
+  required DateTime today,
+}) {
+  if (period == TaskDatePeriod.all) return true;
+
+  final todayOnly = DateTime(today.year, today.month, today.day);
+  final date = taskDate == null
+      ? todayOnly
+      : DateTime(taskDate.year, taskDate.month, taskDate.day);
+
+  return switch (period) {
+    TaskDatePeriod.past => date.isBefore(todayOnly),
+    TaskDatePeriod.today => date == todayOnly,
+    TaskDatePeriod.upcoming => date.isAfter(todayOnly),
+    TaskDatePeriod.all => true,
+  };
+}
+
 TaskDateGroups groupTasksByDeadline(
   Iterable<Map<String, dynamic>> tasks, {
   required DateTime today,
@@ -22,7 +56,7 @@ TaskDateGroups groupTasksByDeadline(
     }
   }
 
-  todayTasks.sort(_compareByNewestCreation);
+  todayTasks.sort(compareTasksByNewestCreation);
   upcomingTasks.sort((left, right) {
     final leftDeadline = _taskDeadlineDate(left);
     final rightDeadline = _taskDeadlineDate(right);
@@ -32,7 +66,7 @@ TaskDateGroups groupTasksByDeadline(
       final dateComparison = leftDeadline.compareTo(rightDeadline);
       if (dateComparison != 0) return dateComparison;
     }
-    return _compareByNewestCreation(left, right);
+    return compareTasksByNewestCreation(left, right);
   });
 
   return (today: todayTasks, upcoming: upcomingTasks);
@@ -54,16 +88,4 @@ DateTime? _taskCreatedTimestamp(Map<String, dynamic> task) {
   if (raw == null || raw.isEmpty) return null;
   final date = DateTime.tryParse(raw);
   return date?.isUtc == true ? date!.toLocal() : date;
-}
-
-int _compareByNewestCreation(
-  Map<String, dynamic> left,
-  Map<String, dynamic> right,
-) {
-  final leftDate = _taskCreatedTimestamp(left);
-  final rightDate = _taskCreatedTimestamp(right);
-  if (leftDate == null && rightDate != null) return 1;
-  if (leftDate != null && rightDate == null) return -1;
-  if (leftDate == null || rightDate == null) return 0;
-  return rightDate.compareTo(leftDate);
 }
