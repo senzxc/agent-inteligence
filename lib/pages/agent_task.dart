@@ -3719,13 +3719,8 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
               _buildTaskPeriodButton(TaskDatePeriod.past),
               const SizedBox(width: 8),
               _buildTaskPeriodButton(TaskDatePeriod.today),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildTaskPeriodButton(TaskDatePeriod.upcoming),
+              const SizedBox(width: 8),
+               _buildTaskPeriodButton(TaskDatePeriod.upcoming),
               const SizedBox(width: 8),
               _buildTaskPeriodButton(TaskDatePeriod.all),
             ],
@@ -3759,7 +3754,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
           decoration: BoxDecoration(
             gradient: isSelected
                 ? const LinearGradient(
-                    colors: [Color(0xFF1565C0), Color(0xFF42A5F5)],
+                    colors: [Color(0xFF1565C0), cupertino.Color.fromARGB(255, 52, 159, 247)],
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
                   )
