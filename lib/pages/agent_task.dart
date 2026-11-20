@@ -4038,7 +4038,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                 ? const LinearGradient(
                     colors: [
                       Color(0xFF1565C0),
-                      cupertino.Color.fromARGB(255, 48, 154, 240),
+                      cupertino.Color.fromARGB(255, 44, 147, 231),
                     ],
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
