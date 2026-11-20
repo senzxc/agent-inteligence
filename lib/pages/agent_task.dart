@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../utils/agency_role.dart';
+import '../utils/task_date_groups.dart';
 import '../widgets/agent_details_dialog.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/agent_profile_photo.dart';
@@ -447,6 +448,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   bool _showTaskSearch = false;
   bool _isViewingOwnTasks = false;
   late DateTime _selectedDate;
+  TaskDatePeriod _selectedTaskPeriod = TaskDatePeriod.today;
 
   String _firstValue(List<String> keys, {String fallback = '-'}) {
     for (final key in keys) {
@@ -507,7 +509,15 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   List<Map<String, dynamic>> get _visibleTasks {
     final query = _taskSearchController.text.trim().toLowerCase();
     final tasks = _tasks.where((task) {
-      if (!_taskMatchesSelectedDate(task)) return false;
+      if (_selectedTaskPeriod == TaskDatePeriod.today) {
+        if (!_taskMatchesSelectedDate(task)) return false;
+      } else if (!taskDateIsInPeriod(
+        _taskDeadlineDate(task),
+        _selectedTaskPeriod,
+        today: DateTime.now(),
+      )) {
+        return false;
+      }
 
       if (_selectedTaskStatus.isNotEmpty &&
           _taskStatus(task) != _selectedTaskStatus) {
@@ -524,21 +534,31 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
       ].any((value) => value.toLowerCase().contains(query));
     }).toList();
 
-    tasks.sort((left, right) {
-      final leftDate = _taskSortDate(left, _taskSortField);
-      final rightDate = _taskSortDate(right, _taskSortField);
-      if (leftDate == null && rightDate != null) return 1;
-      if (leftDate != null && rightDate == null) return -1;
-      if (leftDate != null && rightDate != null) {
-        final comparison = leftDate.compareTo(rightDate);
-        if (comparison != 0) {
-          return _sortAscending ? comparison : -comparison;
+    if (_selectedTaskPeriod == TaskDatePeriod.all) {
+      tasks.sort((left, right) {
+        final comparison = compareTasksByNewestCreation(left, right);
+        if (comparison != 0) return comparison;
+        return _taskTitle(left)
+            .toLowerCase()
+            .compareTo(_taskTitle(right).toLowerCase());
+      });
+    } else {
+      tasks.sort((left, right) {
+        final leftDate = _taskSortDate(left, _taskSortField);
+        final rightDate = _taskSortDate(right, _taskSortField);
+        if (leftDate == null && rightDate != null) return 1;
+        if (leftDate != null && rightDate == null) return -1;
+        if (leftDate != null && rightDate != null) {
+          final comparison = leftDate.compareTo(rightDate);
+          if (comparison != 0) {
+            return _sortAscending ? comparison : -comparison;
+          }
         }
-      }
-      return _taskTitle(left)
-          .toLowerCase()
-          .compareTo(_taskTitle(right).toLowerCase());
-    });
+        return _taskTitle(left)
+            .toLowerCase()
+            .compareTo(_taskTitle(right).toLowerCase());
+      });
+    }
     return tasks;
   }
 
@@ -1129,76 +1149,113 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                 }).toList(),
                           ),
                           const SizedBox(height: 20),
-                          _buildFilterSectionLabel(
-                            icon: Icons.sort_rounded,
-                            title: 'Urutkan daftar',
-                          ),
-                          const SizedBox(height: 9),
-                          DropdownButtonFormField<_TaskSortField>(
-                            initialValue: sortField,
-                            decoration: _filterInputDecoration(
-                              hint: 'Urutkan berdasarkan',
+                          if (_selectedTaskPeriod == TaskDatePeriod.all) ...[
+                            _buildFilterSectionLabel(
+                              icon: Icons.sort_rounded,
+                              title: 'Urutkan daftar',
                             ),
-                            icon: const Icon(
-                              Icons.keyboard_arrow_down_rounded,
-                              color: _primary,
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: _TaskSortField.createdAt,
-                                child: Text('Tanggal dibuat'),
+                            const SizedBox(height: 9),
+                            Container(
+                              padding: const EdgeInsets.all(13),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEAF3FF),
+                                borderRadius: BorderRadius.circular(14),
                               ),
-                              DropdownMenuItem(
-                                value: _TaskSortField.deadline,
-                                child: Text('Tanggal tenggat'),
-                              ),
-                            ],
-                            onChanged: (value) => setSheetState(
-                              () =>
-                                  sortField = value ?? _TaskSortField.createdAt,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          _buildFilterSectionLabel(
-                            icon: Icons.swap_vert_rounded,
-                            title: 'Urutan tanggal',
-                          ),
-                          const SizedBox(height: 9),
-                          SegmentedButton<bool>(
-                            style: ButtonStyle(
-                              backgroundColor: WidgetStateProperty.resolveWith(
-                                (states) =>
-                                    states.contains(WidgetState.selected)
-                                    ? const Color(0xFFEAF3FF)
-                                    : Colors.white,
-                              ),
-                              foregroundColor: WidgetStateProperty.resolveWith(
-                                (states) =>
-                                    states.contains(WidgetState.selected)
-                                    ? const Color(0xFF0D47A1)
-                                    : const Color(0xFF64748B),
-                              ),
-                              side: WidgetStateProperty.all(
-                                const BorderSide(color: Color(0xFFD5E5FA)),
+                              child: const Row(
+                                children: [
+                                  Icon(
+                                    Icons.schedule_rounded,
+                                    color: _primary,
+                                    size: 18,
+                                  ),
+                                  SizedBox(width: 9),
+                                  Expanded(
+                                    child: Text(
+                                      'Semua tanggal selalu diurutkan dari tugas terbaru dibuat.',
+                                      style: TextStyle(
+                                        color: _textPrimary,
+                                        fontSize: 12,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            segments: const [
-                              ButtonSegment(
-                                value: true,
-                                icon: Icon(Icons.arrow_upward_rounded),
-                                label: Text('Ascending'),
-                              ),
-                              ButtonSegment(
-                                value: false,
-                                icon: Icon(Icons.arrow_downward_rounded),
-                                label: Text('Descending'),
-                              ),
-                            ],
-                            selected: {ascending},
-                            onSelectionChanged: (selection) => setSheetState(
-                              () => ascending = selection.first,
+                          ] else ...[
+                            _buildFilterSectionLabel(
+                              icon: Icons.sort_rounded,
+                              title: 'Urutkan daftar',
                             ),
-                          ),
+                            const SizedBox(height: 9),
+                            DropdownButtonFormField<_TaskSortField>(
+                              initialValue: sortField,
+                              decoration: _filterInputDecoration(
+                                hint: 'Urutkan berdasarkan',
+                              ),
+                              icon: const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                color: _primary,
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: _TaskSortField.createdAt,
+                                  child: Text('Tanggal dibuat'),
+                                ),
+                                DropdownMenuItem(
+                                  value: _TaskSortField.deadline,
+                                  child: Text('Tanggal tenggat'),
+                                ),
+                              ],
+                              onChanged: (value) => setSheetState(
+                                () => sortField =
+                                    value ?? _TaskSortField.createdAt,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            _buildFilterSectionLabel(
+                              icon: Icons.swap_vert_rounded,
+                              title: 'Urutan tanggal',
+                            ),
+                            const SizedBox(height: 9),
+                            SegmentedButton<bool>(
+                              style: ButtonStyle(
+                                backgroundColor:
+                                    WidgetStateProperty.resolveWith(
+                                      (states) =>
+                                          states.contains(WidgetState.selected)
+                                          ? const Color(0xFFEAF3FF)
+                                          : Colors.white,
+                                    ),
+                                foregroundColor:
+                                    WidgetStateProperty.resolveWith(
+                                      (states) =>
+                                          states.contains(WidgetState.selected)
+                                          ? const Color(0xFF0D47A1)
+                                          : const Color(0xFF64748B),
+                                    ),
+                                side: WidgetStateProperty.all(
+                                  const BorderSide(color: Color(0xFFD5E5FA)),
+                                ),
+                              ),
+                              segments: const [
+                                ButtonSegment(
+                                  value: true,
+                                  icon: Icon(Icons.arrow_upward_rounded),
+                                  label: Text('Ascending'),
+                                ),
+                                ButtonSegment(
+                                  value: false,
+                                  icon: Icon(Icons.arrow_downward_rounded),
+                                  label: Text('Descending'),
+                                ),
+                              ],
+                              selected: {ascending},
+                              onSelectionChanged: (selection) => setSheetState(
+                                () => ascending = selection.first,
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 24),
                           Row(
                             children: [
@@ -3165,6 +3222,8 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                 ],
                 _buildSummary(),
                 const SizedBox(height: 18),
+                _buildTaskPeriodGroup(),
+                const SizedBox(height: 12),
                 _buildDatePickerGroup(),
                 const SizedBox(height: 18),
                 _buildTaskHeader(),
@@ -3322,6 +3381,70 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   }
 
   Widget _buildDatePickerGroup() {
+    if (_selectedTaskPeriod != TaskDatePeriod.today) {
+      final today = _dateOnly(DateTime.now());
+      final details = switch (_selectedTaskPeriod) {
+        TaskDatePeriod.past =>
+          'Menampilkan tugas dengan tenggat sebelum ${_selectedDateTitle(today)}.',
+        TaskDatePeriod.upcoming =>
+          'Menampilkan tugas dengan tenggat setelah ${_selectedDateTitle(today)}.',
+        TaskDatePeriod.all =>
+          'Menampilkan semua tugas, diurutkan dari yang terbaru dibuat.',
+        TaskDatePeriod.today => '',
+      };
+
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFDCE8F5)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF3FF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.filter_alt_rounded,
+                color: _primary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Filter periode tugas aktif: ${_taskPeriodLabel(_selectedTaskPeriod)}',
+                    style: const TextStyle(
+                      color: _textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    details,
+                    style: const TextStyle(
+                      color: _textSecondary,
+                      fontSize: 11,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final lastDate = _dateForIndex(_dateRangeLength - 1);
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
@@ -3556,6 +3679,113 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
     );
   }
 
+  String _taskPeriodLabel(TaskDatePeriod period) => switch (period) {
+    TaskDatePeriod.past => 'Lampau',
+    TaskDatePeriod.today => 'Hari ini',
+    TaskDatePeriod.upcoming => 'Mendatang',
+    TaskDatePeriod.all => 'Semua tanggal',
+  };
+
+  String _taskPeriodHeaderLabel(TaskDatePeriod period) => switch (period) {
+    TaskDatePeriod.past => 'Tugas lampau',
+    TaskDatePeriod.today => _selectedDateTitle(_selectedDate),
+    TaskDatePeriod.upcoming => 'Tugas mendatang',
+    TaskDatePeriod.all => 'Semua tanggal',
+  };
+
+  Widget _buildTaskPeriodGroup() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 13),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFDCE8F5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Periode Tugas',
+            style: TextStyle(
+              color: _textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildTaskPeriodButton(TaskDatePeriod.past),
+              const SizedBox(width: 8),
+              _buildTaskPeriodButton(TaskDatePeriod.today),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildTaskPeriodButton(TaskDatePeriod.upcoming),
+              const SizedBox(width: 8),
+              _buildTaskPeriodButton(TaskDatePeriod.all),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTaskPeriodButton(TaskDatePeriod period) {
+    final isSelected = _selectedTaskPeriod == period;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(30),
+        onTap: () {
+          final today = _dateOnly(DateTime.now());
+          setState(() {
+            _selectedTaskPeriod = period;
+            if (period == TaskDatePeriod.today) _selectedDate = today;
+          });
+          if (period == TaskDatePeriod.today) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted || !_datePageController.hasClients) return;
+              _datePageController.jumpToPage(_dateIndexFor(today));
+            });
+          }
+        },
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: isSelected
+                ? const LinearGradient(
+                    colors: [Color(0xFF1565C0), Color(0xFF42A5F5)],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  )
+                : null,
+            color: isSelected ? null : Colors.white,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: isSelected ? Colors.transparent : const Color(0xFFCBDDF3),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
+            child: Text(
+              _taskPeriodLabel(period),
+              style: TextStyle(
+                color: isSelected ? Colors.white : _textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSummary() {
     return GridView(
       padding: EdgeInsets.zero,
@@ -3684,7 +3914,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
       children: [
         Expanded(
           child: Text(
-            _selectedDateTitle(_selectedDate),
+            _taskPeriodHeaderLabel(_selectedTaskPeriod),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -3733,6 +3963,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
             Icons.tune_rounded,
             color:
                 _selectedTaskStatus.isNotEmpty ||
+                    _selectedTaskPeriod != TaskDatePeriod.today ||
                     _taskSortField != _TaskSortField.createdAt ||
                     _sortAscending
                 ? _primary
@@ -3908,6 +4139,12 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
       final hasSearchOrStatusFilter =
           _taskSearchController.text.trim().isNotEmpty ||
           _selectedTaskStatus.isNotEmpty;
+      final emptyTitle = switch (_selectedTaskPeriod) {
+        TaskDatePeriod.past => 'Tidak ada tugas lampau',
+        TaskDatePeriod.today => 'Belum ada tugas pada tanggal ini',
+        TaskDatePeriod.upcoming => 'Tidak ada tugas mendatang',
+        TaskDatePeriod.all => 'Belum ada tugas pada semua tanggal',
+      };
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
@@ -3921,9 +4158,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
             Icon(Icons.search_off_rounded, color: _textSecondary, size: 34),
             SizedBox(height: 8),
             Text(
-              hasSearchOrStatusFilter
-                  ? 'Tugas tidak ditemukan'
-                  : 'Belum ada tugas pada tanggal ini',
+              hasSearchOrStatusFilter ? 'Tugas tidak ditemukan' : emptyTitle,
               style: TextStyle(
                 color: _textPrimary,
                 fontSize: 14,
@@ -3934,7 +4169,9 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
             Text(
               hasSearchOrStatusFilter
                   ? 'Coba ubah kata pencarian atau filter status.'
-                  : 'Tugas untuk tanggal ini akan tampil di sini.',
+                  : _selectedTaskPeriod == TaskDatePeriod.today
+                  ? 'Tugas untuk tanggal ini akan tampil di sini.'
+                  : 'Tugas dalam periode ini akan tampil di sini.',
               textAlign: TextAlign.center,
               style: TextStyle(color: _textSecondary, fontSize: 12),
             ),
