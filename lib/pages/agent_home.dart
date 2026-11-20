@@ -35,43 +35,6 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
   bool _isLoading = true;
   String? _errorMessage;
   final ScrollController _dashboardScrollController = ScrollController();
-  final GlobalKey _dashboardScrollViewportKey = GlobalKey();
-  final GlobalKey _viewAllTasksButtonKey = GlobalKey();
-  bool _isViewAllTasksButtonSticky = false;
-  bool _isViewAllTasksButtonUpdateScheduled = false;
-
-  void _scheduleViewAllTasksButtonUpdate() {
-    if (_isViewAllTasksButtonUpdateScheduled) return;
-    _isViewAllTasksButtonUpdateScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _isViewAllTasksButtonUpdateScheduled = false;
-      if (!mounted) return;
-
-      var isSticky = false;
-      final buttonRenderObject = _viewAllTasksButtonKey.currentContext
-          ?.findRenderObject();
-      final viewportRenderObject = _dashboardScrollViewportKey.currentContext
-          ?.findRenderObject();
-      if (buttonRenderObject is RenderBox &&
-          buttonRenderObject.hasSize &&
-          viewportRenderObject is RenderBox &&
-          viewportRenderObject.hasSize) {
-        final buttonTop = buttonRenderObject.localToGlobal(Offset.zero).dy;
-        final buttonBottom = buttonRenderObject
-            .localToGlobal(Offset(0, buttonRenderObject.size.height))
-            .dy;
-        final viewportTop = viewportRenderObject.localToGlobal(Offset.zero).dy;
-        final viewportBottom = viewportRenderObject
-            .localToGlobal(Offset(0, viewportRenderObject.size.height))
-            .dy;
-        isSticky = buttonBottom <= viewportTop || buttonTop >= viewportBottom;
-      }
-
-      if (_isViewAllTasksButtonSticky != isSticky) {
-        setState(() => _isViewAllTasksButtonSticky = isSticky);
-      }
-    });
-  }
 
   Widget _withStickyButtonShadow(Widget button) => Container(
     decoration: BoxDecoration(
@@ -118,7 +81,6 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
   @override
   void initState() {
     super.initState();
-    _dashboardScrollController.addListener(_scheduleViewAllTasksButtonUpdate);
     _loadTasks();
     _loadProfilePhoto();
   }
@@ -1000,7 +962,6 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
         style: TextStyle(fontWeight: FontWeight.w700),
       ),
     );
-    _scheduleViewAllTasksButtonUpdate();
 
     return Scaffold(
       backgroundColor: _pageEnd,
@@ -1039,9 +1000,8 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
               onRefresh: _loadTasks,
               child: ListView(
                 controller: _dashboardScrollController,
-                key: _dashboardScrollViewportKey,
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 100),
                 children: [
                   _buildWelcomeCard(),
                   const SizedBox(height: 20),
@@ -1055,15 +1015,6 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
                   _buildTaskHeader(),
                   const SizedBox(height: 12),
                   _buildTaskContent(),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    key: _viewAllTasksButtonKey,
-                    width: double.infinity,
-                    height: 50,
-                    child: _isViewAllTasksButtonSticky
-                        ? const SizedBox.shrink()
-                        : allTasksButton,
-                  ),
                 ],
               ),
             ),
@@ -1076,25 +1027,7 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
               top: false,
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: IgnorePointer(
-                  ignoring: !_isViewAllTasksButtonSticky,
-                  child: ExcludeSemantics(
-                    excluding: !_isViewAllTasksButtonSticky,
-                    child: AnimatedSlide(
-                      offset: _isViewAllTasksButtonSticky
-                          ? Offset.zero
-                          : const Offset(0, 1.3),
-                      duration: const Duration(milliseconds: 380),
-                      curve: Curves.easeOutBack,
-                      child: AnimatedOpacity(
-                        opacity: _isViewAllTasksButtonSticky ? 1 : 0,
-                        duration: const Duration(milliseconds: 180),
-                        curve: Curves.easeOut,
-                        child: _withStickyButtonShadow(allTasksButton),
-                      ),
-                    ),
-                  ),
-                ),
+                child: _withStickyButtonShadow(allTasksButton),
               ),
             ),
           ),
