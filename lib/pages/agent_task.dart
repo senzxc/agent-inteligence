@@ -3316,7 +3316,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: _textPrimary,
-                    fontSize: 15,
+                    fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -3999,11 +3999,11 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _buildTaskPeriodButton(TaskDatePeriod.past),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               _buildTaskPeriodButton(TaskDatePeriod.today),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               _buildTaskPeriodButton(TaskDatePeriod.upcoming),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               _buildTaskPeriodButton(TaskDatePeriod.all),
             ],
           ),
@@ -4460,53 +4460,95 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
       );
     }
 
+    if (_selectedTaskPeriod == TaskDatePeriod.today) {
+      return Column(children: visibleTasks.map(_buildTaskRow).toList());
+    }
+
+    final taskGroups = groupTasksByCreationDate(visibleTasks);
     return Column(
-      children: visibleTasks.map((task) {
-        final taskId = _taskId(task);
-        return TweenAnimationBuilder<double>(
-          key: ObjectKey(task),
-          tween: Tween<double>(begin: 0, end: _isSelectionMode ? 1 : 0),
-          duration: const Duration(milliseconds: 360),
-          curve: Curves.easeOutCubic,
-          builder: (context, progress, _) {
-            final isSelected = _selectedTaskIds.contains(taskId);
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRect(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: progress,
-                    child: Transform.translate(
-                      offset: Offset(-18 * (1 - progress), 0),
-                      child: Opacity(
-                        opacity: progress,
-                        child: SizedBox(
-                          width: 42,
-                          child: Checkbox(
-                            value: isSelected,
-                            onChanged: taskId.isEmpty || _isBulkDeleting
-                                ? null
-                                : (selected) => _toggleTaskSelection(
-                                    taskId,
-                                    selected ?? false,
-                                  ),
-                            activeColor: _primary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                          ),
+      children: [
+        for (final group in taskGroups) ...[
+          _buildTaskCreationDateHeader(group.date),
+          ...group.tasks.map(_buildTaskRow),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTaskCreationDateHeader(DateTime? date) {
+    final title = date == null
+        ? 'Tanggal dibuat tidak tersedia'
+        : '${date.day} ${_monthName(date.month)} ${date.year}';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 4, 22, 8),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: _textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Divider(
+              color: cupertino.Color.fromARGB(92, 63, 63, 63),
+              thickness: 1.2,
+              height: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTaskRow(Map<String, dynamic> task) {
+    final taskId = _taskId(task);
+    return TweenAnimationBuilder<double>(
+      key: ObjectKey(task),
+      tween: Tween<double>(begin: 0, end: _isSelectionMode ? 1 : 0),
+      duration: const Duration(milliseconds: 360),
+      curve: Curves.easeOutCubic,
+      builder: (context, progress, _) {
+        final isSelected = _selectedTaskIds.contains(taskId);
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRect(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                widthFactor: progress,
+                child: Transform.translate(
+                  offset: Offset(-18 * (1 - progress), 0),
+                  child: Opacity(
+                    opacity: progress,
+                    child: SizedBox(
+                      width: 42,
+                      child: Checkbox(
+                        value: isSelected,
+                        onChanged: taskId.isEmpty || _isBulkDeleting
+                            ? null
+                            : (selected) => _toggleTaskSelection(
+                                taskId,
+                                selected ?? false,
+                              ),
+                        activeColor: _primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(5),
                         ),
                       ),
                     ),
                   ),
                 ),
-                Expanded(child: _buildTaskCard(task)),
-              ],
-            );
-          },
+              ),
+            ),
+            Expanded(child: _buildTaskCard(task)),
+          ],
         );
-      }).toList(),
+      },
     );
   }
 
@@ -4563,7 +4605,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SizedBox(
-                          height: 34,
+                          height: 28,
                           child: Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
