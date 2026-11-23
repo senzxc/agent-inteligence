@@ -3682,18 +3682,122 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                     Row(
                       children: [
                         Expanded(
-                          child: _buildCalendarDropdown(
-                            label: _monthName(displayedMonth),
-                            onPressed: () =>
-                                setDialogState(() => pickerView = 'month'),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                tooltip: 'Bulan sebelumnya',
+                                onPressed:
+                                    DateTime(
+                                      displayedYear,
+                                      displayedMonth - 1,
+                                      1,
+                                    ).isBefore(DateTime(firstYear, 1, 1))
+                                    ? null
+                                    : () {
+                                        setDialogState(() {
+                                          final previousMonth = DateTime(
+                                            displayedYear,
+                                            displayedMonth - 1,
+                                            1,
+                                          );
+                                          displayedYear = previousMonth.year;
+                                          displayedMonth = previousMonth.month;
+                                          pickerView = 'calendar';
+                                        });
+                                      },
+                                icon: const Icon(
+                                  Icons.chevron_left_rounded,
+                                  color: _primary,
+                                ),
+                              ),
+                              Expanded(
+                                child: _buildCalendarDropdown(
+                                  label: _monthName(displayedMonth),
+                                  isActive: pickerView == 'month',
+                                  onPressed: () => setDialogState(
+                                    () => pickerView = pickerView == 'month'
+                                        ? 'calendar'
+                                        : 'month',
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'Bulan berikutnya',
+                                onPressed:
+                                    displayedYear > lastYear ||
+                                        (displayedYear == lastYear &&
+                                            displayedMonth >= lastDate.month)
+                                    ? null
+                                    : () {
+                                        setDialogState(() {
+                                          final nextMonth = DateTime(
+                                            displayedYear,
+                                            displayedMonth + 1,
+                                            1,
+                                          );
+                                          displayedYear = nextMonth.year;
+                                          displayedMonth = nextMonth.month;
+                                          pickerView = 'calendar';
+                                        });
+                                      },
+                                icon: const Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: _primary,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: _buildCalendarDropdown(
-                            label: '$displayedYear',
-                            onPressed: () =>
-                                setDialogState(() => pickerView = 'year'),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                tooltip: 'Tahun sebelumnya',
+                                onPressed: displayedYear <= firstYear
+                                    ? null
+                                    : () {
+                                        setDialogState(() {
+                                          displayedYear--;
+                                          pickerView = 'calendar';
+                                        });
+                                      },
+                                icon: const Icon(
+                                  Icons.chevron_left_rounded,
+                                  color: _primary,
+                                ),
+                              ),
+                              Expanded(
+                                child: _buildCalendarDropdown(
+                                  label: '$displayedYear',
+                                  isActive: pickerView == 'year',
+                                  onPressed: () => setDialogState(
+                                    () => pickerView = pickerView == 'year'
+                                        ? 'calendar'
+                                        : 'year',
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'Tahun berikutnya',
+                                onPressed: displayedYear >= lastYear
+                                    ? null
+                                    : () {
+                                        setDialogState(() {
+                                          displayedYear++;
+                                          if (displayedYear == lastYear &&
+                                              displayedMonth > lastDate.month) {
+                                            displayedMonth = lastDate.month;
+                                          }
+                                          pickerView = 'calendar';
+                                        });
+                                      },
+                                icon: const Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: _primary,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -3883,6 +3987,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   Widget _buildCalendarDropdown({
     required String label,
     required VoidCallback onPressed,
+    required bool isActive,
   }) {
     return OutlinedButton(
       onPressed: onPressed,
@@ -3904,7 +4009,12 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             ),
           ),
-          const Icon(Icons.keyboard_arrow_down_rounded, color: _primary),
+          Icon(
+            isActive
+                ? Icons.keyboard_arrow_up_rounded
+                : Icons.keyboard_arrow_down_rounded,
+            color: _primary,
+          ),
         ],
       ),
     );
