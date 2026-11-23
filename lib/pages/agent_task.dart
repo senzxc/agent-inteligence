@@ -852,16 +852,16 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
         .trim();
     if (completedAt != null && completedAt.isNotEmpty) {
       final date = DateTime.tryParse(completedAt);
-      if (date != null) return date;
+      if (date != null) return date.isUtc ? date.toLocal() : date;
     }
 
     if (_taskStatus(task) != 'Selesai') return null;
     final updatedAt = (task['updatedAt'] ?? task['updated_at'])
         ?.toString()
         .trim();
-    return updatedAt == null || updatedAt.isEmpty
-        ? null
-        : DateTime.tryParse(updatedAt);
+    if (updatedAt == null || updatedAt.isEmpty) return null;
+    final date = DateTime.tryParse(updatedAt);
+    return date?.isUtc == true ? date!.toLocal() : date;
   }
 
   String _formatTaskDate(DateTime date) {
@@ -937,7 +937,9 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
 
   String _taskCompletedAt(Map<String, dynamic> task) {
     final date = _taskCompletedDate(task);
-    return date == null ? '-' : _formatTaskDate(date);
+    return date == null
+        ? '-'
+        : '${_formatTaskDate(date)} • ${_formatTime(date)}';
   }
 
   DateTime? _taskSortDate(Map<String, dynamic> task, _TaskSortField field) {
