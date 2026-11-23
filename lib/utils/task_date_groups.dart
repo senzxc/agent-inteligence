@@ -3,7 +3,33 @@ typedef TaskDateGroups = ({
   List<Map<String, dynamic>> upcoming,
 });
 
+typedef TaskCreationDateGroup = ({
+  DateTime? date,
+  List<Map<String, dynamic>> tasks,
+});
+
 enum TaskDatePeriod { past, today, upcoming, all }
+
+List<TaskCreationDateGroup> groupTasksByCreationDate(
+  Iterable<Map<String, dynamic>> tasks,
+) {
+  final groups = <DateTime?, List<Map<String, dynamic>>>{};
+  for (final task in tasks) {
+    final createdAt = _taskCreatedTimestamp(task);
+    final date = createdAt == null
+        ? null
+        : DateTime(createdAt.year, createdAt.month, createdAt.day);
+    groups.putIfAbsent(date, () => []).add(task);
+  }
+
+  final dates = groups.keys.whereType<DateTime>().toList()
+    ..sort((left, right) => right.compareTo(left));
+
+  return [
+    for (final date in dates) (date: date, tasks: groups[date]!),
+    if (groups.containsKey(null)) (date: null, tasks: groups[null]!),
+  ];
+}
 
 int compareTasksByNewestCreation(
   Map<String, dynamic> left,
