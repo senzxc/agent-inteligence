@@ -1747,54 +1747,6 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                 ],
                               ),
                             ),
-                            if (widget.canManageTasks) ...[
-                              const SizedBox(height: 18),
-                              const Text(
-                                'UBAH STATUS',
-                                style: TextStyle(
-                                  color: Color(0xFF64748B),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              for (final option in _statuses)
-                                _buildTaskStatusChoice(
-                                  option: option,
-                                  selectedStatus: selectedStatus,
-                                  enabled: !isCompleted && !isUpdatingStatus,
-                                  onTap: () => selectStatus(option),
-                                ),
-                              if (isUpdatingStatus) ...[
-                                const SizedBox(height: 6),
-                                const LinearProgressIndicator(
-                                  minHeight: 3,
-                                  color: _primary,
-                                  backgroundColor: Color(0xFFEAF3FF),
-                                ),
-                              ],
-                              if (statusError != null) ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                  statusError!,
-                                  style: const TextStyle(
-                                    color: Color(0xFFB91C1C),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                              if (isCompleted) ...[
-                                const SizedBox(height: 4),
-                                const Text(
-                                  'Tugas yang sudah selesai tidak dapat diubah kembali.',
-                                  style: TextStyle(
-                                    color: Color(0xFF64748B),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ],
                             const SizedBox(height: 18),
                             const Text(
                               'DESKRIPSI',
@@ -1843,6 +1795,54 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                               label: 'Selesai pada',
                               value: completedAt,
                             ),
+                            if (widget.canManageTasks) ...[
+                              const SizedBox(height: 18),
+                              const Text(
+                                'UBAH STATUS',
+                                style: TextStyle(
+                                  color: Color(0xFF64748B),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              for (final option in _statuses)
+                                _buildTaskStatusChoice(
+                                  option: option,
+                                  selectedStatus: selectedStatus,
+                                  enabled: !isCompleted && !isUpdatingStatus,
+                                  onTap: () => selectStatus(option),
+                                ),
+                              if (isUpdatingStatus) ...[
+                                const SizedBox(height: 6),
+                                const LinearProgressIndicator(
+                                  minHeight: 3,
+                                  color: _primary,
+                                  backgroundColor: Color(0xFFEAF3FF),
+                                ),
+                              ],
+                              if (statusError != null) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  statusError!,
+                                  style: const TextStyle(
+                                    color: Color(0xFFB91C1C),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                              if (isCompleted) ...[
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Tugas yang sudah selesai tidak dapat diubah kembali.',
+                                  style: TextStyle(
+                                    color: Color(0xFF64748B),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ],
                         ),
                       ),
