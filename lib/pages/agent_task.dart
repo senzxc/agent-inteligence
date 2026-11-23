@@ -504,7 +504,12 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   }).length;
 
   Set<String> get _selectableTaskIds =>
-      _tasks.map(_taskId).where((taskId) => taskId.isNotEmpty).toSet();
+      _visibleTasks.map(_taskId).where((taskId) => taskId.isNotEmpty).toSet();
+
+  void _pruneSelectedTaskIds() {
+    final visibleTaskIds = _selectableTaskIds;
+    _selectedTaskIds.removeWhere((taskId) => !visibleTaskIds.contains(taskId));
+  }
 
   List<Map<String, dynamic>> get _visibleTasks {
     final query = _taskSearchController.text.trim().toLowerCase();
@@ -1270,6 +1275,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                       _sortAscending = false;
                                       _taskSearchController.clear();
                                       _showTaskSearch = false;
+                                      _pruneSelectedTaskIds();
                                     });
                                     Navigator.pop(sheetContext);
                                   },
@@ -1307,6 +1313,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                         _selectedTaskStatus = selectedStatus;
                                         _taskSortField = sortField;
                                         _sortAscending = ascending;
+                                        _pruneSelectedTaskIds();
                                       });
                                       Navigator.pop(sheetContext);
                                     },
@@ -1374,6 +1381,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
           ..clear()
           ..addAll(tasks);
         _selectedTaskIds.removeWhere((id) => !taskIds.contains(id));
+        _pruneSelectedTaskIds();
         _isLoading = false;
         _refreshError = null;
       });
@@ -1540,6 +1548,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
               'completedAt': null,
           };
         }
+        _pruneSelectedTaskIds();
       });
       _showMessage('Status tugas berhasil diperbarui.');
       return true;
@@ -2247,10 +2256,11 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
 
   void _toggleAllTaskSelection(bool selected) {
     setState(() {
+      final visibleTaskIds = _selectableTaskIds;
       if (selected) {
-        _selectedTaskIds.addAll(_selectableTaskIds);
+        _selectedTaskIds.addAll(visibleTaskIds);
       } else {
-        _selectedTaskIds.clear();
+        _selectedTaskIds.removeAll(visibleTaskIds);
       }
     });
   }
@@ -2404,8 +2414,13 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
 
   Future<void> _deleteSelectedTasks() async {
     if (_isBulkDeleting || _selectedTaskIds.isEmpty) return;
+    final visibleTaskIds = _selectableTaskIds;
     final selectedTasks = _tasks
-        .where((task) => _selectedTaskIds.contains(_taskId(task)))
+        .where(
+          (task) =>
+              visibleTaskIds.contains(_taskId(task)) &&
+              _selectedTaskIds.contains(_taskId(task)),
+        )
         .toList();
     if (selectedTasks.isEmpty) {
       _showMessage(
@@ -3238,7 +3253,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                   TextField(
                     controller: _taskSearchController,
                     focusNode: _taskSearchFocusNode,
-                    onChanged: (_) => setState(() {}),
+                    onChanged: (_) => setState(_pruneSelectedTaskIds),
                     textInputAction: TextInputAction.search,
                     decoration: InputDecoration(
                       hintText: 'Cari judul, deskripsi, status, tanggal...',
@@ -3252,7 +3267,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                               tooltip: 'Hapus pencarian',
                               onPressed: () {
                                 _taskSearchController.clear();
-                                setState(() {});
+                                setState(_pruneSelectedTaskIds);
                               },
                               icon: const Icon(Icons.clear_rounded),
                             ),
@@ -3509,6 +3524,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
               onPageChanged: (index) {
                 setState(() {
                   _selectedDate = _dateForIndex(index);
+                  _pruneSelectedTaskIds();
                 });
               },
               itemBuilder: (context, index) {
@@ -4136,6 +4152,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
           setState(() {
             _selectedTaskPeriod = period;
             if (period == TaskDatePeriod.today) _selectedDate = today;
+            _pruneSelectedTaskIds();
           });
           if (period == TaskDatePeriod.today) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -4241,7 +4258,10 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => setState(() => _selectedTaskStatus = filterStatus),
+        onTap: () => setState(() {
+          _selectedTaskStatus = filterStatus;
+          _pruneSelectedTaskIds();
+        }),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
           decoration: BoxDecoration(
@@ -4332,6 +4352,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
             setState(() {
               _showTaskSearch = showSearch;
               if (!_showTaskSearch) _taskSearchController.clear();
+              _pruneSelectedTaskIds();
             });
             if (showSearch) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -4411,7 +4432,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
           ),
         ),
         subtitle: const Text(
-          'Termasuk tugas yang tidak tampil karena pencarian atau filter.',
+          'Hanya memilih tugas yang tampil sesuai filter aktif.',
           style: TextStyle(color: _textSecondary, fontSize: 11),
         ),
         secondary: Text(
