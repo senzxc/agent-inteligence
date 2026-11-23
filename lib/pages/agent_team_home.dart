@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:geocoding/geocoding.dart';
 
 import '../services/api_service.dart';
+import '../services/changelog_service.dart';
 import '../services/gps_tracking_service.dart';
 import '../utils/agency_role.dart';
 import '../utils/dashboard_route_observer.dart';
@@ -2162,6 +2163,11 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         actions: [
+          IconButton(
+            tooltip: 'Apa yang baru?',
+            onPressed: () => ChangelogService.showLatest(context),
+            icon: const Icon(Icons.new_releases_outlined, color: _primary),
+          ),
           IconButton(
             tooltip: 'Keluar',
             onPressed: _confirmLogout,

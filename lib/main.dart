@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' as material;
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
@@ -20,6 +22,7 @@ import 'pages/agent_profile_edit.dart';
 import 'pages/agent_team_home.dart';
 import 'pages/kantor_list.dart';
 import 'services/api_service.dart';
+import 'services/changelog_service.dart';
 import 'services/gps_tracking_service.dart';
 import 'services/push_notification_service.dart';
 import 'services/recent_kantor_service.dart';
@@ -860,6 +863,9 @@ class _HomePageState extends State<HomePage> with RouteAware {
   void initState() {
     super.initState();
     _dashboardScrollController.addListener(_scheduleViewAllButtonsUpdate);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(ChangelogService.showIfNewVersion(context));
+    });
   }
 
   @override
@@ -1493,6 +1499,16 @@ class _HomePageState extends State<HomePage> with RouteAware {
                       size: 18,
                       color: Color(0xFF1565C0),
                     ),
+            ),
+            IconButton(
+              variance: ButtonVariance.ghost,
+              onPressed: () => ChangelogService.showLatest(context),
+              icon: const Icon(
+                LucideIcons.info,
+                semanticLabel: 'Apa yang baru?',
+                size: 18,
+                color: Color(0xFF1565C0),
+              ),
             ),
             IconButton(
               variance: ButtonVariance.ghost,

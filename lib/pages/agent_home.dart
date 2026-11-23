@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/changelog_service.dart';
 import '../services/gps_tracking_service.dart';
 import '../utils/dashboard_route_observer.dart';
 import '../utils/task_date_groups.dart';
@@ -978,6 +979,11 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
           ),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Apa yang baru?',
+            onPressed: () => ChangelogService.showLatest(context),
+            icon: const Icon(Icons.new_releases_outlined, color: _primary),
+          ),
           IconButton(
             tooltip: 'Keluar',
             onPressed: _confirmLogout,
