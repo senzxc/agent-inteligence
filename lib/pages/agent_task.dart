@@ -443,8 +443,8 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   String? _refreshError;
   String? _agentHeaderRefreshError;
   String _selectedTaskStatus = '';
-  _TaskSortField _taskSortField = _TaskSortField.createdAt;
-  bool _sortAscending = false;
+  _TaskSortField _taskSortField = _TaskSortField.deadline;
+  bool _sortAscending = true;
   bool _showTaskSearch = false;
   bool _isViewingOwnTasks = false;
   late DateTime _selectedDate;
@@ -539,31 +539,21 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
       ].any((value) => value.toLowerCase().contains(query));
     }).toList();
 
-    if (_selectedTaskPeriod == TaskDatePeriod.all) {
-      tasks.sort((left, right) {
-        final comparison = compareTasksByNewestCreation(left, right);
-        if (comparison != 0) return comparison;
-        return _taskTitle(left)
-            .toLowerCase()
-            .compareTo(_taskTitle(right).toLowerCase());
-      });
-    } else {
-      tasks.sort((left, right) {
-        final leftDate = _taskSortDate(left, _taskSortField);
-        final rightDate = _taskSortDate(right, _taskSortField);
-        if (leftDate == null && rightDate != null) return 1;
-        if (leftDate != null && rightDate == null) return -1;
-        if (leftDate != null && rightDate != null) {
-          final comparison = leftDate.compareTo(rightDate);
-          if (comparison != 0) {
-            return _sortAscending ? comparison : -comparison;
-          }
+    tasks.sort((left, right) {
+      final leftDate = _taskSortDate(left, _taskSortField);
+      final rightDate = _taskSortDate(right, _taskSortField);
+      if (leftDate == null && rightDate != null) return 1;
+      if (leftDate != null && rightDate == null) return -1;
+      if (leftDate != null && rightDate != null) {
+        final comparison = leftDate.compareTo(rightDate);
+        if (comparison != 0) {
+          return _sortAscending ? comparison : -comparison;
         }
-        return _taskTitle(left)
-            .toLowerCase()
-            .compareTo(_taskTitle(right).toLowerCase());
-      });
-    }
+      }
+      return _taskTitle(left)
+          .toLowerCase()
+          .compareTo(_taskTitle(right).toLowerCase());
+    });
     return tasks;
   }
 
@@ -1156,113 +1146,76 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                 }).toList(),
                           ),
                           const SizedBox(height: 20),
-                          if (_selectedTaskPeriod == TaskDatePeriod.all) ...[
-                            _buildFilterSectionLabel(
-                              icon: Icons.sort_rounded,
-                              title: 'Urutkan daftar',
+                          _buildFilterSectionLabel(
+                            icon: Icons.sort_rounded,
+                            title: 'Urutkan daftar',
+                          ),
+                          const SizedBox(height: 9),
+                          DropdownButtonFormField<_TaskSortField>(
+                            initialValue: sortField,
+                            decoration: _filterInputDecoration(
+                              hint: 'Urutkan berdasarkan',
                             ),
-                            const SizedBox(height: 9),
-                            Container(
-                              padding: const EdgeInsets.all(13),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEAF3FF),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: const Row(
-                                children: [
-                                  Icon(
-                                    Icons.schedule_rounded,
-                                    color: _primary,
-                                    size: 18,
-                                  ),
-                                  SizedBox(width: 9),
-                                  Expanded(
-                                    child: Text(
-                                      'Semua tanggal selalu diurutkan dari tugas terbaru dibuat.',
-                                      style: TextStyle(
-                                        color: _textPrimary,
-                                        fontSize: 12,
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            icon: const Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              color: _primary,
                             ),
-                          ] else ...[
-                            _buildFilterSectionLabel(
-                              icon: Icons.sort_rounded,
-                              title: 'Urutkan daftar',
+                            items: const [
+                              DropdownMenuItem(
+                                value: _TaskSortField.createdAt,
+                                child: Text('Tanggal dibuat'),
+                              ),
+                              DropdownMenuItem(
+                                value: _TaskSortField.deadline,
+                                child: Text('Tanggal tenggat'),
+                              ),
+                            ],
+                            onChanged: (value) => setSheetState(
+                              () =>
+                                  sortField = value ?? _TaskSortField.deadline,
                             ),
-                            const SizedBox(height: 9),
-                            DropdownButtonFormField<_TaskSortField>(
-                              initialValue: sortField,
-                              decoration: _filterInputDecoration(
-                                hint: 'Urutkan berdasarkan',
+                          ),
+                          const SizedBox(height: 20),
+                          _buildFilterSectionLabel(
+                            icon: Icons.swap_vert_rounded,
+                            title: 'Urutan waktu',
+                          ),
+                          const SizedBox(height: 9),
+                          SegmentedButton<bool>(
+                            style: ButtonStyle(
+                              backgroundColor: WidgetStateProperty.resolveWith(
+                                (states) =>
+                                    states.contains(WidgetState.selected)
+                                    ? const Color(0xFFEAF3FF)
+                                    : Colors.white,
                               ),
-                              icon: const Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                color: _primary,
+                              foregroundColor: WidgetStateProperty.resolveWith(
+                                (states) =>
+                                    states.contains(WidgetState.selected)
+                                    ? const Color(0xFF0D47A1)
+                                    : const Color(0xFF64748B),
                               ),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: _TaskSortField.createdAt,
-                                  child: Text('Tanggal dibuat'),
-                                ),
-                                DropdownMenuItem(
-                                  value: _TaskSortField.deadline,
-                                  child: Text('Tanggal tenggat'),
-                                ),
-                              ],
-                              onChanged: (value) => setSheetState(
-                                () => sortField =
-                                    value ?? _TaskSortField.createdAt,
+                              side: WidgetStateProperty.all(
+                                const BorderSide(color: Color(0xFFD5E5FA)),
                               ),
                             ),
-                            const SizedBox(height: 20),
-                            _buildFilterSectionLabel(
-                              icon: Icons.swap_vert_rounded,
-                              title: 'Urutan tanggal',
-                            ),
-                            const SizedBox(height: 9),
-                            SegmentedButton<bool>(
-                              style: ButtonStyle(
-                                backgroundColor:
-                                    WidgetStateProperty.resolveWith(
-                                      (states) =>
-                                          states.contains(WidgetState.selected)
-                                          ? const Color(0xFFEAF3FF)
-                                          : Colors.white,
-                                    ),
-                                foregroundColor:
-                                    WidgetStateProperty.resolveWith(
-                                      (states) =>
-                                          states.contains(WidgetState.selected)
-                                          ? const Color(0xFF0D47A1)
-                                          : const Color(0xFF64748B),
-                                    ),
-                                side: WidgetStateProperty.all(
-                                  const BorderSide(color: Color(0xFFD5E5FA)),
-                                ),
+                            segments: const [
+                              ButtonSegment(
+                                value: true,
+                                icon: Icon(Icons.arrow_upward_rounded),
+                                label: Text('Ascending'),
                               ),
-                              segments: const [
-                                ButtonSegment(
-                                  value: true,
-                                  icon: Icon(Icons.arrow_upward_rounded),
-                                  label: Text('Ascending'),
-                                ),
-                                ButtonSegment(
-                                  value: false,
-                                  icon: Icon(Icons.arrow_downward_rounded),
-                                  label: Text('Descending'),
-                                ),
-                              ],
-                              selected: {ascending},
-                              onSelectionChanged: (selection) => setSheetState(
-                                () => ascending = selection.first,
+                              ButtonSegment(
+                                value: false,
+                                icon: Icon(Icons.arrow_downward_rounded),
+                                label: Text('Descending'),
                               ),
+                            ],
+                            selected: {ascending},
+                            onSelectionChanged: (selection) => setSheetState(
+                              () => ascending = selection.first,
                             ),
-                          ],
+                          ),
                           const SizedBox(height: 24),
                           Row(
                             children: [
@@ -1271,8 +1224,8 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                   onPressed: () {
                                     setState(() {
                                       _selectedTaskStatus = '';
-                                      _taskSortField = _TaskSortField.createdAt;
-                                      _sortAscending = false;
+                                      _taskSortField = _TaskSortField.deadline;
+                                      _sortAscending = true;
                                       _taskSearchController.clear();
                                       _showTaskSearch = false;
                                       _pruneSelectedTaskIds();
@@ -4377,8 +4330,8 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
             color:
                 _selectedTaskStatus.isNotEmpty ||
                     _selectedTaskPeriod != TaskDatePeriod.today ||
-                    _taskSortField != _TaskSortField.createdAt ||
-                    _sortAscending
+                    _taskSortField != _TaskSortField.deadline ||
+                    !_sortAscending
                 ? _primary
                 : _textSecondary,
           ),
@@ -4597,20 +4550,28 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
       return Column(children: visibleTasks.map(_buildTaskRow).toList());
     }
 
-    final taskGroups = groupTasksByCreationDate(visibleTasks);
+    final taskGroups = <DateTime?, List<Map<String, dynamic>>>{};
+    for (final task in visibleTasks) {
+      final sortDate = _taskSortDate(task, _taskSortField);
+      final groupDate = sortDate == null ? null : _dateOnly(sortDate);
+      taskGroups.putIfAbsent(groupDate, () => []).add(task);
+    }
+
     return Column(
       children: [
-        for (final group in taskGroups) ...[
-          _buildTaskCreationDateHeader(group.date),
-          ...group.tasks.map(_buildTaskRow),
+        for (final group in taskGroups.entries) ...[
+          _buildTaskSortDateHeader(group.key),
+          ...group.value.map(_buildTaskRow),
         ],
       ],
     );
   }
 
-  Widget _buildTaskCreationDateHeader(DateTime? date) {
+  Widget _buildTaskSortDateHeader(DateTime? date) {
     final title = date == null
-        ? 'Tanggal dibuat tidak tersedia'
+        ? _taskSortField == _TaskSortField.deadline
+              ? 'Tanggal tenggat tidak tersedia'
+              : 'Tanggal dibuat tidak tersedia'
         : '${date.day} ${_monthName(date.month)} ${date.year}';
 
     return Padding(
