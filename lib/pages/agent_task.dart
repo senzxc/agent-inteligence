@@ -4580,24 +4580,40 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
     }
 
     if (_selectedTaskPeriod == TaskDatePeriod.today) {
-      return Column(children: _buildTaskRows(visibleTasks));
+      final incompleteTasks = visibleTasks
+          .where((task) => _taskStatus(task) != 'Selesai')
+          .toList();
+      final completedTasks = visibleTasks
+          .where((task) => _taskStatus(task) == 'Selesai')
+          .toList();
+
+      return Column(
+        children: [
+          ..._buildTaskRows(incompleteTasks),
+          if (completedTasks.isNotEmpty)
+            _buildCompletedTasksHeader(completedTasks.length),
+          ..._buildTaskRows(completedTasks),
+        ],
+      );
     }
 
+    return Column(children: _buildTaskGroupsByDate(visibleTasks));
+  }
+
+  List<Widget> _buildTaskGroupsByDate(List<Map<String, dynamic>> tasks) {
     final taskGroups = <DateTime?, List<Map<String, dynamic>>>{};
-    for (final task in visibleTasks) {
+    for (final task in tasks) {
       final sortDate = _taskSortDate(task, _taskSortField);
       final groupDate = sortDate == null ? null : _dateOnly(sortDate);
       taskGroups.putIfAbsent(groupDate, () => []).add(task);
     }
 
-    return Column(
-      children: [
-        for (final group in taskGroups.entries) ...[
-          _buildTaskSortDateHeader(group.key),
-          ..._buildTaskRows(group.value),
-        ],
+    return [
+      for (final group in taskGroups.entries) ...[
+        _buildTaskSortDateHeader(group.key),
+        ..._buildTaskRows(group.value),
       ],
-    );
+    ];
   }
 
   List<Widget> _buildTaskRows(List<Map<String, dynamic>> tasks) {
@@ -4638,6 +4654,39 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
               height: 1,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompletedTasksHeader(int count) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(44, 14, 0, 8),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.check_circle_outline_rounded,
+            color: Color(0xFF15803D),
+            size: 17,
+          ),
+          const SizedBox(width: 8),
+          const Text(
+            'Tugas selesai',
+            style: TextStyle(
+              color: Color(0xFF15803D),
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Divider(
+              color: const Color(0xFF15803D).withValues(alpha: 0.3),
+              thickness: 1.2,
+              height: 1,
+            ),
+          ),
+          const SizedBox(width: 12),
         ],
       ),
     );
