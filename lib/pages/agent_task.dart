@@ -3197,10 +3197,6 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                 _buildDatePickerGroup(),
                 const SizedBox(height: 18),
                 _buildTaskHeader(),
-                if (_isSelectionMode && _selectableTaskIds.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  _buildSelectAllTasks(),
-                ],
                 if (_showTaskSearch) ...[
                   const SizedBox(height: 4),
                   TextField(
@@ -3243,6 +3239,10 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                       ),
                     ),
                   ),
+                ],
+                if (_isSelectionMode && _selectableTaskIds.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _buildSelectAllTasks(),
                 ],
                 const SizedBox(height: 12),
                 _buildTaskContent(),
@@ -3590,6 +3590,14 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
             displayedMonth,
             1 - leadingDays,
           );
+          final previousMonth = DateTime(displayedYear, displayedMonth - 1, 1);
+          final nextMonth = DateTime(displayedYear, displayedMonth + 1, 1);
+          final canGoToPreviousMonth = !previousMonth.isBefore(
+            DateTime(firstYear, 1, 1),
+          );
+          final canGoToNextMonth =
+              displayedYear < lastYear ||
+              (displayedYear == lastYear && displayedMonth < lastDate.month);
           final today = _dateOnly(DateTime.now());
           final weekdays = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
@@ -3652,123 +3660,59 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                     const SizedBox(height: 14),
                     Row(
                       children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              IconButton(
-                                tooltip: 'Bulan sebelumnya',
-                                onPressed:
-                                    DateTime(
-                                      displayedYear,
-                                      displayedMonth - 1,
-                                      1,
-                                    ).isBefore(DateTime(firstYear, 1, 1))
-                                    ? null
-                                    : () {
-                                        setDialogState(() {
-                                          final previousMonth = DateTime(
-                                            displayedYear,
-                                            displayedMonth - 1,
-                                            1,
-                                          );
-                                          displayedYear = previousMonth.year;
-                                          displayedMonth = previousMonth.month;
-                                          pickerView = 'calendar';
-                                        });
-                                      },
-                                icon: const Icon(
-                                  Icons.chevron_left_rounded,
-                                  color: _primary,
-                                ),
-                              ),
-                              Expanded(
-                                child: _buildCalendarDropdown(
-                                  label: _monthName(displayedMonth),
-                                  isActive: pickerView == 'month',
-                                  onPressed: () => setDialogState(
-                                    () => pickerView = pickerView == 'month'
-                                        ? 'calendar'
-                                        : 'month',
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: 'Bulan berikutnya',
-                                onPressed:
-                                    displayedYear > lastYear ||
-                                        (displayedYear == lastYear &&
-                                            displayedMonth >= lastDate.month)
-                                    ? null
-                                    : () {
-                                        setDialogState(() {
-                                          final nextMonth = DateTime(
-                                            displayedYear,
-                                            displayedMonth + 1,
-                                            1,
-                                          );
-                                          displayedYear = nextMonth.year;
-                                          displayedMonth = nextMonth.month;
-                                          pickerView = 'calendar';
-                                        });
-                                      },
-                                icon: const Icon(
-                                  Icons.chevron_right_rounded,
-                                  color: _primary,
-                                ),
-                              ),
-                            ],
+                        IconButton(
+                          tooltip: 'Bulan sebelumnya',
+                          onPressed: canGoToPreviousMonth
+                              ? () {
+                                  setDialogState(() {
+                                    displayedYear = previousMonth.year;
+                                    displayedMonth = previousMonth.month;
+                                    pickerView = 'calendar';
+                                  });
+                                }
+                              : null,
+                          icon: const Icon(
+                            Icons.chevron_left_rounded,
+                            color: _primary,
                           ),
                         ),
-                        const SizedBox(width: 10),
                         Expanded(
-                          child: Row(
-                            children: [
-                              IconButton(
-                                tooltip: 'Tahun sebelumnya',
-                                onPressed: displayedYear <= firstYear
-                                    ? null
-                                    : () {
-                                        setDialogState(() {
-                                          displayedYear--;
-                                          pickerView = 'calendar';
-                                        });
-                                      },
-                                icon: const Icon(
-                                  Icons.chevron_left_rounded,
-                                  color: _primary,
-                                ),
-                              ),
-                              Expanded(
-                                child: _buildCalendarDropdown(
-                                  label: '$displayedYear',
-                                  isActive: pickerView == 'year',
-                                  onPressed: () => setDialogState(
-                                    () => pickerView = pickerView == 'year'
-                                        ? 'calendar'
-                                        : 'year',
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: 'Tahun berikutnya',
-                                onPressed: displayedYear >= lastYear
-                                    ? null
-                                    : () {
-                                        setDialogState(() {
-                                          displayedYear++;
-                                          if (displayedYear == lastYear &&
-                                              displayedMonth > lastDate.month) {
-                                            displayedMonth = lastDate.month;
-                                          }
-                                          pickerView = 'calendar';
-                                        });
-                                      },
-                                icon: const Icon(
-                                  Icons.chevron_right_rounded,
-                                  color: _primary,
-                                ),
-                              ),
-                            ],
+                          child: _buildCalendarDropdown(
+                            label: _monthName(displayedMonth),
+                            isActive: pickerView == 'month',
+                            onPressed: () => setDialogState(
+                              () => pickerView = pickerView == 'month'
+                                  ? 'calendar'
+                                  : 'month',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildCalendarDropdown(
+                            label: '$displayedYear',
+                            isActive: pickerView == 'year',
+                            onPressed: () => setDialogState(
+                              () => pickerView = pickerView == 'year'
+                                  ? 'calendar'
+                                  : 'year',
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Bulan berikutnya',
+                          onPressed: canGoToNextMonth
+                              ? () {
+                                  setDialogState(() {
+                                    displayedYear = nextMonth.year;
+                                    displayedMonth = nextMonth.month;
+                                    pickerView = 'calendar';
+                                  });
+                                }
+                              : null,
+                          icon: const Icon(
+                            Icons.chevron_right_rounded,
+                            color: _primary,
                           ),
                         ),
                       ],
@@ -3806,6 +3750,10 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                             onSelected: (year) {
                               setDialogState(() {
                                 displayedYear = year;
+                                if (year == lastYear &&
+                                    displayedMonth > lastDate.month) {
+                                  displayedMonth = lastDate.month;
+                                }
                                 pickerView = 'calendar';
                               });
                             },
