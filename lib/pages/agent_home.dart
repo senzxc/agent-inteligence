@@ -590,6 +590,54 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
                             ),
                             const SizedBox(height: 18),
                             const Text(
+                              'DESKRIPSI',
+                              style: TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFD),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: const Color(0xFFE8EEF6),
+                                ),
+                              ),
+                              child: Text(
+                                _description(task).isEmpty
+                                    ? 'Tidak ada deskripsi.'
+                                    : _description(task),
+                                style: const TextStyle(
+                                  color: Color(0xFF334155),
+                                  fontSize: 14,
+                                  height: 1.55,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            _TaskDetailTile(
+                              icon: Icons.event_outlined,
+                              label: 'Tenggat',
+                              value: _deadline(task),
+                            ),
+                            _TaskDetailTile(
+                              icon: Icons.calendar_today_outlined,
+                              label: 'Tanggal dibuat',
+                              value: _createdAt(task),
+                            ),
+                            _TaskDetailTile(
+                              icon: Icons.task_alt_rounded,
+                              label: 'Selesai pada',
+                              value: completedAt,
+                            ),
+                            const SizedBox(height: 18),
+                            const Text(
                               'UBAH STATUS',
                               style: TextStyle(
                                 color: Color(0xFF64748B),
@@ -642,54 +690,6 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
                                 ),
                               ),
                             ],
-                            const SizedBox(height: 18),
-                            const Text(
-                              'DESKRIPSI',
-                              style: TextStyle(
-                                color: Color(0xFF64748B),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFD),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: const Color(0xFFE8EEF6),
-                                ),
-                              ),
-                              child: Text(
-                                _description(task).isEmpty
-                                    ? 'Tidak ada deskripsi.'
-                                    : _description(task),
-                                style: const TextStyle(
-                                  color: Color(0xFF334155),
-                                  fontSize: 14,
-                                  height: 1.55,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            _TaskDetailTile(
-                              icon: Icons.event_outlined,
-                              label: 'Tenggat',
-                              value: _deadline(task),
-                            ),
-                            _TaskDetailTile(
-                              icon: Icons.calendar_today_outlined,
-                              label: 'Tanggal dibuat',
-                              value: _createdAt(task),
-                            ),
-                            _TaskDetailTile(
-                              icon: Icons.task_alt_rounded,
-                              label: 'Selesai pada',
-                              value: completedAt,
-                            ),
                           ],
                         ),
                       ),
