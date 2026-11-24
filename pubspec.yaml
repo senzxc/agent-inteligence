@@ -45,6 +45,7 @@ dependencies:
   geolocator: ^14.1.1
   geocoding: ^5.0.0
   location: ^10.0.2
+  package_info_plus: ^10.2.2
   shared_preferences: ^2.5.6
   url_launcher: ^6.3.3
   font_awesome_flutter: ^11.0.0
