@@ -4650,6 +4650,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
     final status = _taskStatus(task);
     final taskId = _taskId(task);
     final isUpdating = _updatingTaskIds.contains(taskId);
+    final isSelected = _selectedTaskIds.contains(taskId);
     final (statusColor, statusBackground, statusIcon) = switch (status) {
       'Berjalan' => (
         const Color(0xFFD97706),
@@ -4673,7 +4674,11 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFDCE8F5)),
+        border: Border.all(
+          color: isSelected
+              ? _primary.withValues(alpha: 0.55)
+              : const Color(0xFFDCE8F5),
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0C0D47A1),
@@ -4685,265 +4690,303 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => _showTaskDetailsDialog(task),
+          onTap: () {
+            if (_isBulkDeleting) return;
+            if (_isSelectionMode) {
+              if (taskId.isNotEmpty) {
+                _toggleTaskSelection(
+                  taskId,
+                  !_selectedTaskIds.contains(taskId),
+                );
+              }
+              return;
+            }
+            _showTaskDetailsDialog(task);
+          },
+          onLongPress: () {
+            if (_isSelectionMode || _isBulkDeleting || taskId.isEmpty) return;
+            setState(() {
+              _isSelectionMode = true;
+              _selectedTaskIds.add(taskId);
+            });
+          },
           borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(
-                    width: 50,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          height: 28,
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              _taskDeadlineTime(task) ?? '--:--',
-                              maxLines: 1,
-                              style: const TextStyle(
-                                color: cupertino.Color.fromARGB(
-                                  255,
-                                  48,
-                                  48,
-                                  48,
+          child: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(
+                        width: 50,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              height: 28,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  _taskDeadlineTime(task) ?? '--:--',
+                                  maxLines: 1,
+                                  style: const TextStyle(
+                                    color: cupertino.Color.fromARGB(
+                                      255,
+                                      48,
+                                      48,
+                                      48,
+                                    ),
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: SizedBox(
-                            width: 16,
-                            child: Column(
-                              children: [
-                                Container(
-                                  width: 9,
-                                  height: 9,
-                                  decoration: BoxDecoration(
-                                    color: statusColor,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Container(
-                                    width: 2,
-                                    color: const Color(0xFFCBD5E1),
-                                  ),
-                                ),
-                                Icon(
-                                  Icons.arrow_downward_rounded,
-                                  color: const Color(0xFF94A3B8),
-                                  size: 16,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
+                            const SizedBox(height: 8),
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _taskTitle(task),
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: _textPrimary,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      height: 1.3,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.schedule_rounded,
-                                        color: _textSecondary,
-                                        size: 13,
+                              child: SizedBox(
+                                width: 16,
+                                child: Column(
+                                  children: [
+                                    Container(
+                                      width: 9,
+                                      height: 9,
+                                      decoration: BoxDecoration(
+                                        color: statusColor,
+                                        shape: BoxShape.circle,
                                       ),
-                                      const SizedBox(width: 5),
-                                      Expanded(
-                                        child: Text(
-                                          'Dibuat pada ${_taskCreatedAt(task)}',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            color: _textSecondary,
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w500,
-                                          ),
+                                    ),
+                                    Expanded(
+                                      child: Container(
+                                        width: 2,
+                                        color: const Color(0xFFCBD5E1),
+                                      ),
+                                    ),
+                                    Icon(
+                                      Icons.arrow_downward_rounded,
+                                      color: const Color(0xFF94A3B8),
+                                      size: 16,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _taskTitle(task),
+                                        maxLines: 3,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: _textPrimary,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          height: 1.3,
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (widget.canManageTasks)
-                              PopupMenuButton<String>(
-                                tooltip: 'Aksi tugas',
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(
-                                  minWidth: 42,
-                                  minHeight: 42,
-                                ),
-                                color: Colors.white,
-                                elevation: 10,
-                                shadowColor: const Color(0x260F172A),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  side: const BorderSide(
-                                    color: Color(0xFFE2E8F0),
-                                  ),
-                                ),
-                                icon: const Icon(
-                                  Icons.more_vert_rounded,
-                                  color: _textSecondary,
-                                  size: 20,
-                                ),
-                                onSelected: (action) {
-                                  if (action == 'edit' && status != 'Selesai') {
-                                    _showAddTaskDialog(task: task);
-                                  } else if (action == 'delete') {
-                                    _deleteTask(task);
-                                  }
-                                },
-                                itemBuilder: (context) => [
-                                  if (status != 'Selesai')
-                                    const PopupMenuItem(
-                                      value: 'edit',
-                                      height: 48,
-                                      child: Row(
+                                      const SizedBox(height: 2),
+                                      Row(
                                         children: [
-                                          Icon(
-                                            Icons.edit_outlined,
-                                            color: _primary,
-                                            size: 20,
+                                          const Icon(
+                                            Icons.schedule_rounded,
+                                            color: _textSecondary,
+                                            size: 13,
                                           ),
-                                          SizedBox(width: 10),
-                                          Text(
-                                            'Edit tugas',
-                                            style: TextStyle(
-                                              color: _textPrimary,
-                                              fontWeight: FontWeight.w600,
+                                          const SizedBox(width: 5),
+                                          Expanded(
+                                            child: Text(
+                                              'Dibuat ${_taskCreatedAt(task)}',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: _textSecondary,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w500,
+                                              ),
                                             ),
                                           ),
                                         ],
                                       ),
-                                    ),
-                                  const PopupMenuItem(
-                                    value: 'delete',
-                                    height: 48,
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.delete_outline_rounded,
-                                          color: Color(0xFFDC2626),
-                                          size: 20,
-                                        ),
-                                        SizedBox(width: 10),
-                                        Text(
-                                          'Hapus tugas',
-                                          style: TextStyle(
-                                            color: Color(0xFFB91C1C),
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                          ],
-                        ),
-                        if (_taskDescription(task).isNotEmpty) ...[
-                          const SizedBox(height: 12),
-                          Padding(
-                            padding: const EdgeInsets.only(right: 50),
-                            child: Text(
-                              _taskDescription(task),
-                              maxLines: 5,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: _textSecondary,
-                                fontSize: 12,
-                                height: 1.45,
-                              ),
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 7,
-                            ),
-                            decoration: BoxDecoration(
-                              color: statusBackground,
-                              borderRadius: BorderRadius.circular(11),
-                              border: Border.all(
-                                color: statusColor.withValues(alpha: 0.16),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (isUpdating)
-                                  SizedBox(
-                                    width: 13,
-                                    height: 13,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: statusColor,
-                                    ),
-                                  )
-                                else
-                                  Icon(
-                                    statusIcon,
-                                    color: statusColor,
-                                    size: 14,
-                                  ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  status,
-                                  style: TextStyle(
-                                    color: statusColor,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
+                                    ],
                                   ),
                                 ),
+                                if (widget.canManageTasks)
+                                  PopupMenuButton<String>(
+                                    tooltip: 'Aksi tugas',
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(
+                                      minWidth: 42,
+                                      minHeight: 42,
+                                    ),
+                                    color: Colors.white,
+                                    elevation: 10,
+                                    shadowColor: const Color(0x260F172A),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                      side: const BorderSide(
+                                        color: Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    icon: const Icon(
+                                      Icons.more_vert_rounded,
+                                      color: _textSecondary,
+                                      size: 20,
+                                    ),
+                                    onSelected: (action) {
+                                      if (action == 'edit' &&
+                                          status != 'Selesai') {
+                                        _showAddTaskDialog(task: task);
+                                      } else if (action == 'delete') {
+                                        _deleteTask(task);
+                                      }
+                                    },
+                                    itemBuilder: (context) => [
+                                      if (status != 'Selesai')
+                                        const PopupMenuItem(
+                                          value: 'edit',
+                                          height: 48,
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.edit_outlined,
+                                                color: _primary,
+                                                size: 20,
+                                              ),
+                                              SizedBox(width: 10),
+                                              Text(
+                                                'Edit tugas',
+                                                style: TextStyle(
+                                                  color: _textPrimary,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      const PopupMenuItem(
+                                        value: 'delete',
+                                        height: 48,
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.delete_outline_rounded,
+                                              color: Color(0xFFDC2626),
+                                              size: 20,
+                                            ),
+                                            SizedBox(width: 10),
+                                            Text(
+                                              'Hapus tugas',
+                                              style: TextStyle(
+                                                color: Color(0xFFB91C1C),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                               ],
                             ),
-                          ),
+                            if (_taskDescription(task).isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              Padding(
+                                padding: const EdgeInsets.only(right: 50),
+                                child: Text(
+                                  _taskDescription(task),
+                                  maxLines: 5,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: _textSecondary,
+                                    fontSize: 12,
+                                    height: 1.45,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 12),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 7,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: statusBackground,
+                                  borderRadius: BorderRadius.circular(11),
+                                  border: Border.all(
+                                    color: statusColor.withValues(alpha: 0.16),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (isUpdating)
+                                      SizedBox(
+                                        width: 13,
+                                        height: 13,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: statusColor,
+                                        ),
+                                      )
+                                    else
+                                      Icon(
+                                        statusIcon,
+                                        color: statusColor,
+                                        size: 14,
+                                      ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      status,
+                                      style: TextStyle(
+                                        color: statusColor,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? _primary.withValues(alpha: 0.16)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(20),
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
