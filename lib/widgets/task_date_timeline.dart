@@ -280,7 +280,7 @@ class _TimelineItem extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 4),
               padding: EdgeInsets.symmetric(
                 vertical: highlighted ? 10 : 9,
-                horizontal: highlighted ? 11 : 0,
+                horizontal: 11,
               ),
               decoration: highlighted
                   ? BoxDecoration(
