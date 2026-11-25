@@ -556,39 +556,39 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 9,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusBackground,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: statusColor.withValues(alpha: 0.2),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    statusIcon,
-                                    size: 15,
-                                    color: statusColor,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    selectedStatus,
-                                    style: TextStyle(
-                                      color: statusColor,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 18),
+                            // Container(
+                            //   padding: const EdgeInsets.symmetric(
+                            //     horizontal: 12,
+                            //     vertical: 9,
+                            //   ),
+                            //   decoration: BoxDecoration(
+                            //     color: statusBackground,
+                            //     borderRadius: BorderRadius.circular(12),
+                            //     border: Border.all(
+                            //       color: statusColor.withValues(alpha: 0.2),
+                            //     ),
+                            //   ),
+                            //   child: Row(
+                            //     mainAxisSize: MainAxisSize.min,
+                            //     children: [
+                            //       Icon(
+                            //         statusIcon,
+                            //         size: 15,
+                            //         color: statusColor,
+                            //       ),
+                            //       const SizedBox(width: 8),
+                            //       Text(
+                            //         selectedStatus,
+                            //         style: TextStyle(
+                            //           color: statusColor,
+                            //           fontWeight: FontWeight.w700,
+                            //           fontSize: 13,
+                            //         ),
+                            //       ),
+                            //     ],
+                            //   ),
+                            // ),
+                            // const SizedBox(height: 18),
                             const Text(
                               'DESKRIPSI',
                               style: TextStyle(
