@@ -1749,7 +1749,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                             //     ],
                             //   ),
                             // ),
-                            const SizedBox(height: 18),
+                            // const SizedBox(height: 18),
                             const Text(
                               'DESKRIPSI',
                               style: TextStyle(
@@ -1852,6 +1852,30 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                       child: widget.canManageTasks
                           ? Row(
                               children: [
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: isUpdatingStatus
+                                        ? null
+                                        : () => Navigator.pop(
+                                            dialogContext,
+                                            'delete',
+                                          ),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: const Color(0xFFDC2626),
+                                      foregroundColor: Colors.white,
+                                      minimumSize: const Size.fromHeight(46),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    icon: const Icon(
+                                      Icons.delete_outline_rounded,
+                                      size: 18,
+                                    ),
+                                    label: const Text('Hapus'),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
                                 if (isCompleted)
                                   Expanded(
                                     child: OutlinedButton(
@@ -1880,12 +1904,10 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                           ? null
                                           : () => Navigator.pop(
                                               dialogContext,
-                                              'delete',
+                                              'edit',
                                             ),
                                       style: FilledButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFFDC2626,
-                                        ),
+                                        backgroundColor: _primary,
                                         foregroundColor: Colors.white,
                                         minimumSize: const Size.fromHeight(46),
                                         shape: RoundedRectangleBorder(
@@ -1895,39 +1917,12 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                         ),
                                       ),
                                       icon: const Icon(
-                                        Icons.delete_outline_rounded,
+                                        Icons.edit_outlined,
                                         size: 18,
                                       ),
-                                      label: const Text('Hapus'),
+                                      label: const Text('Edit'),
                                     ),
                                   ),
-                                const SizedBox(width: 10),
-
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    onPressed: isUpdatingStatus
-                                        ? null
-                                        : () => Navigator.pop(
-                                            dialogContext,
-                                            'edit',
-                                          ),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: _primary,
-                                      minimumSize: const Size.fromHeight(46),
-                                      side: const BorderSide(
-                                        color: Color(0xFFBFDBFE),
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                    icon: const Icon(
-                                      Icons.edit_outlined,
-                                      size: 18,
-                                    ),
-                                    label: const Text('Edit'),
-                                  ),
-                                ),
                               ],
                             )
                           : SizedBox(
@@ -2192,7 +2187,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
               margin: const EdgeInsets.only(bottom: 4),
               padding: EdgeInsets.symmetric(
                 vertical: highlighted ? 10 : 9,
-                horizontal: highlighted ? 11 : 0,
+                horizontal: 11,
               ),
               decoration: highlighted
                   ? BoxDecoration(
@@ -5094,21 +5089,6 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                           crossAxisAlignment: CrossAxisAlignment.center,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Text(
-                              'Tenggat',
-                              style: TextStyle(
-                                color: cupertino.Color.fromARGB(
-                                  255,
-                                  125,
-                                  131,
-                                  143,
-                                ),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                height: 1,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
                             Text(
                               deadlineTime,
                               style: const TextStyle(
