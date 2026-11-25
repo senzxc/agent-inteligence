@@ -10,6 +10,7 @@ import '../utils/dashboard_route_observer.dart';
 import '../utils/task_date_groups.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/agent_profile_avatar.dart';
+import '../widgets/task_date_timeline.dart';
 import 'agent_profile_edit.dart';
 import '../pages/agent_task.dart';
 
@@ -279,33 +280,7 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  String _formatTaskDate(DateTime date) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'Mei',
-      'Jun',
-      'Jul',
-      'Agu',
-      'Sep',
-      'Okt',
-      'Nov',
-      'Des',
-    ];
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
-  }
-
-  String _createdAt(Map<String, dynamic> task) {
-    final raw = (task['createdAt'] ?? task['created_at'] ?? task['created'])
-        ?.toString()
-        .trim();
-    final date = raw == null ? null : DateTime.tryParse(raw);
-    return date == null ? 'Tidak tersedia' : _formatTaskDate(date);
-  }
-
-  String _completedAt(Map<String, dynamic> task) {
+  DateTime? _completedDate(Map<String, dynamic> task) {
     final raw = (task['completedAt'] ?? task['completed_at'])
         ?.toString()
         .trim();
@@ -318,12 +293,13 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
           ? null
           : DateTime.tryParse(updatedAt);
     }
-    return date == null ? '-' : _formatTaskDate(date);
+    if (date == null) return null;
+    return date.isUtc ? date.toLocal() : date;
   }
 
   Future<void> _showTaskDetails(Map<String, dynamic> task) async {
     var selectedStatus = _status(task);
-    var completedAt = _completedAt(task);
+    var completedDate = _completedDate(task);
     var isUpdatingStatus = false;
     String? statusError;
 
@@ -429,7 +405,7 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
           if (nextStatus == 'Selesai') {
             for (final updatedTask in _tasks) {
               if (_taskId(updatedTask) == taskId) {
-                completedAt = _completedAt(updatedTask);
+                completedDate = _completedDate(updatedTask);
                 break;
               }
             }
@@ -464,9 +440,6 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) {
-          final (statusColor, statusBackground, statusIcon) = _statusStyle(
-            selectedStatus,
-          );
           final isCompleted = selectedStatus == 'Selesai';
 
           return Dialog(
@@ -620,21 +593,11 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 18),
-                            _TaskDetailTile(
-                              icon: Icons.event_outlined,
-                              label: 'Tenggat',
-                              value: _deadline(task),
-                            ),
-                            _TaskDetailTile(
-                              icon: Icons.calendar_today_outlined,
-                              label: 'Tanggal dibuat',
-                              value: _createdAt(task),
-                            ),
-                            _TaskDetailTile(
-                              icon: Icons.task_alt_rounded,
-                              label: 'Selesai pada',
-                              value: completedAt,
+                            const SizedBox(height: 20),
+                            TaskDateTimeline(
+                              task: task,
+                              status: selectedStatus,
+                              completedAtOverride: completedDate,
                             ),
                             const SizedBox(height: 18),
                             const Text(
@@ -1623,70 +1586,6 @@ class _AgentHomePageState extends State<AgentHomePage> with RouteAware {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _TaskDetailTile extends StatelessWidget {
-  const _TaskDetailTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 9),
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFD),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE8EEF6)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE7F0FF),
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: Icon(icon, color: const Color(0xFF1565C0), size: 19),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: Color(0xFF14264D),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -11,6 +11,7 @@ import '../utils/task_date_groups.dart';
 import '../widgets/app_toast.dart';
 import '../widgets/agent_marker.dart';
 import '../widgets/agent_profile_avatar.dart';
+import '../widgets/task_date_timeline.dart';
 import 'agent_profile_edit.dart';
 import 'agent_task.dart';
 
@@ -436,33 +437,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
-  String _formatMyTaskDate(DateTime date) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'Mei',
-      'Jun',
-      'Jul',
-      'Agu',
-      'Sep',
-      'Okt',
-      'Nov',
-      'Des',
-    ];
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
-  }
-
-  String _myTaskCreatedAt(Map<String, dynamic> task) {
-    final raw = (task['createdAt'] ?? task['created_at'] ?? task['created'])
-        ?.toString()
-        .trim();
-    final date = raw == null ? null : DateTime.tryParse(raw);
-    return date == null ? 'Tidak tersedia' : _formatMyTaskDate(date);
-  }
-
-  String _myTaskCompletedAt(Map<String, dynamic> task) {
+  DateTime? _myTaskCompletedDate(Map<String, dynamic> task) {
     final raw = (task['completedAt'] ?? task['completed_at'])
         ?.toString()
         .trim();
@@ -475,7 +450,8 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
           ? null
           : DateTime.tryParse(updatedAt);
     }
-    return date == null ? '-' : _formatMyTaskDate(date);
+    if (date == null) return null;
+    return date.isUtc ? date.toLocal() : date;
   }
 
   Future<void> _showMyTaskDetails(Map<String, dynamic> task) async {
@@ -485,7 +461,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
         .toString()
         .trim();
     var selectedStatus = _myTaskStatus(task);
-    var completedAt = _myTaskCompletedAt(task);
+    var completedDate = _myTaskCompletedDate(task);
     var isUpdatingStatus = false;
     String? statusError;
 
@@ -563,7 +539,7 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
           if (nextStatus == 'Selesai') {
             for (final updatedTask in _myTasks) {
               if (_myTaskId(updatedTask) == taskId) {
-                completedAt = _myTaskCompletedAt(updatedTask);
+                completedDate = _myTaskCompletedDate(updatedTask);
                 break;
               }
             }
@@ -755,21 +731,11 @@ class _AgentTeamHomePageState extends State<AgentTeamHomePage> with RouteAware {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 18),
-                            _AgentDetailTile(
-                              icon: Icons.event_outlined,
-                              label: 'Tenggat',
-                              value: _myTaskDeadline(task),
-                            ),
-                            _AgentDetailTile(
-                              icon: Icons.calendar_today_outlined,
-                              label: 'Tanggal dibuat',
-                              value: _myTaskCreatedAt(task),
-                            ),
-                            _AgentDetailTile(
-                              icon: Icons.task_alt_rounded,
-                              label: 'Selesai pada',
-                              value: completedAt,
+                            const SizedBox(height: 20),
+                            TaskDateTimeline(
+                              task: task,
+                              status: selectedStatus,
+                              completedAtOverride: completedDate,
                             ),
                             const SizedBox(height: 18),
                             const Text(
