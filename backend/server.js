@@ -58,6 +58,8 @@ function stopAgentTracking(stambuk) {
 
 const TASKS_DIR = path.join(__dirname, 'data');
 const TASKS_FILE = path.join(TASKS_DIR, 'tugas.json');
+const TASK_TITLE_MAX_LENGTH = 75;
+const TASK_DESCRIPTION_MAX_LENGTH = 1000;
 const PROFILE_PHOTO_DIR = process.env.PROFILE_PHOTO_DIR ||
     path.join(__dirname, 'uploads', 'profile-photos');
 const PROFILE_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
@@ -1977,17 +1979,17 @@ app.post(
                 });
             }
 
-            if (judul.length > 200) {
+            if (judul.length > TASK_TITLE_MAX_LENGTH) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Judul maksimal 200 karakter',
+                    message: `Judul maksimal ${TASK_TITLE_MAX_LENGTH} karakter`,
                 });
             }
 
-            if (deskripsi.length > 5000) {
+            if (deskripsi.length > TASK_DESCRIPTION_MAX_LENGTH) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Deskripsi maksimal 5000 karakter',
+                    message: `Deskripsi maksimal ${TASK_DESCRIPTION_MAX_LENGTH} karakter`,
                 });
             }
 
@@ -2073,17 +2075,17 @@ app.patch(
                 });
             }
 
-            if (judul.length > 200) {
+            if (judul.length > TASK_TITLE_MAX_LENGTH) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Judul maksimal 200 karakter',
+                    message: `Judul maksimal ${TASK_TITLE_MAX_LENGTH} karakter`,
                 });
             }
 
-            if (deskripsi.length > 5000) {
+            if (deskripsi.length > TASK_DESCRIPTION_MAX_LENGTH) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Deskripsi maksimal 5000 karakter',
+                    message: `Deskripsi maksimal ${TASK_DESCRIPTION_MAX_LENGTH} karakter`,
                 });
             }
 
