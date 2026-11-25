@@ -414,6 +414,8 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   static const Color _primary = Color(0xFF1565C0);
   static const Color _textPrimary = Color(0xFF1E293B);
   static const Color _textSecondary = Color(0xFF64748B);
+  static const int _taskTitleMaxLength = 75;
+  static const int _taskDescriptionMaxLength = 1000;
 
   static const List<String> _statuses = [
     'Belum dimulai',
@@ -2844,6 +2846,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                 controller: titleController,
                                 textCapitalization:
                                     TextCapitalization.sentences,
+                                maxLength: _taskTitleMaxLength,
                                 decoration: _taskInputDecoration(
                                   label: 'Judul tugas',
                                   hint: 'Contoh: Kunjungan nasabah',
@@ -2852,6 +2855,10 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                 validator: (value) {
                                   if (value == null || value.trim().isEmpty) {
                                     return 'Judul tugas wajib diisi.';
+                                  }
+                                  if (value.trim().length >
+                                      _taskTitleMaxLength) {
+                                    return 'Judul maksimal $_taskTitleMaxLength karakter.';
                                   }
                                   return null;
                                 },
@@ -2863,6 +2870,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                     TextCapitalization.sentences,
                                 minLines: 3,
                                 maxLines: 5,
+                                maxLength: _taskDescriptionMaxLength,
                                 decoration: _taskInputDecoration(
                                   label: 'Deskripsi',
                                   hint: 'Jelaskan detail tugas...',
@@ -2872,6 +2880,10 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                 validator: (value) {
                                   if (value == null || value.trim().isEmpty) {
                                     return 'Deskripsi tugas wajib diisi.';
+                                  }
+                                  if (value.trim().length >
+                                      _taskDescriptionMaxLength) {
+                                    return 'Deskripsi maksimal $_taskDescriptionMaxLength karakter.';
                                   }
                                   return null;
                                 },
