@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -12,19 +13,37 @@ class ApiService {
   static String? _token;
   static bool get hasSession => _token != null;
 
+  static const String _connectionErrorMessage =
+      'Tidak dapat terhubung ke server. Periksa koneksi internet Anda, '
+      'lalu coba lagi.';
+
   static Map<String, String> get _authHeaders => {
     'Content-Type': 'application/json',
     if (_token != null) 'Authorization': 'Bearer $_token',
   };
 
+  static Future<T> _withFriendlyNetworkError<T>(
+    Future<T> Function() request,
+  ) async {
+    try {
+      return await request();
+    } on http.ClientException {
+      throw Exception(_connectionErrorMessage);
+    } on TimeoutException {
+      throw Exception(_connectionErrorMessage);
+    }
+  }
+
   static Future<Map<String, dynamic>> login(
     String stambuk,
     String password,
   ) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/api/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'stambuk': stambuk, 'password': password}),
+    final response = await _withFriendlyNetworkError(
+      () => http.post(
+        Uri.parse('$baseUrl/api/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'stambuk': stambuk, 'password': password}),
+      ),
     );
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -93,9 +112,8 @@ class ApiService {
       throw Exception('Token belum tersedia. Silakan login ulang.');
     }
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/auth/me'),
-      headers: _authHeaders,
+    final response = await _withFriendlyNetworkError(
+      () => http.get(Uri.parse('$baseUrl/api/auth/me'), headers: _authHeaders),
     );
 
     final Object? decoded = jsonDecode(response.body);
@@ -166,7 +184,9 @@ class ApiService {
       );
     }
 
-    final response = await http.Response.fromStream(await request.send());
+    final response = await _withFriendlyNetworkError(
+      () async => http.Response.fromStream(await request.send()),
+    );
     final Object? decoded;
     try {
       decoded = jsonDecode(response.body);
@@ -195,9 +215,11 @@ class ApiService {
       throw Exception('Token belum tersedia. Silakan login ulang.');
     }
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/auth/profile/photo'),
-      headers: _authHeaders,
+    final response = await _withFriendlyNetworkError(
+      () => http.get(
+        Uri.parse('$baseUrl/api/auth/profile/photo'),
+        headers: _authHeaders,
+      ),
     );
     if (response.statusCode == 404) {
       try {
@@ -245,11 +267,13 @@ class ApiService {
       throw ArgumentError.value(agentId, 'agentId', 'ID agen wajib diisi.');
     }
 
-    final response = await http.get(
-      Uri.parse(
-        '$baseUrl/api/agents/${Uri.encodeComponent(normalizedAgentId)}/profile/photo',
+    final response = await _withFriendlyNetworkError(
+      () => http.get(
+        Uri.parse(
+          '$baseUrl/api/agents/${Uri.encodeComponent(normalizedAgentId)}/profile/photo',
+        ),
+        headers: _authHeaders,
       ),
-      headers: _authHeaders,
     );
     if (response.statusCode == 404) {
       try {
@@ -285,7 +309,9 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> getKantor() async {
-    final response = await http.get(Uri.parse('$baseUrl/api/kantor'));
+    final response = await _withFriendlyNetworkError(
+      () => http.get(Uri.parse('$baseUrl/api/kantor')),
+    );
 
     return {
       'statusCode': response.statusCode,
@@ -306,33 +332,24 @@ class ApiService {
     final uri = Uri.parse('$baseUrl$endpoint');
     final headers = _authHeaders;
 
-    late http.Response response;
-
-    switch (method) {
-      case 'GET':
-        response = await http.get(uri, headers: headers);
-        break;
-      case 'POST':
-        response = await http.post(
-          uri,
-          headers: headers,
-          body: jsonEncode(body ?? {}),
-        );
-        break;
-      case 'PATCH':
-        response = await http.patch(
-          uri,
-          headers: headers,
-          body: jsonEncode(body ?? {}),
-        );
-        break;
-
-      case 'DELETE':
-        response = await http.delete(uri, headers: headers);
-        break;
-      default:
-        throw Exception('Method API tidak didukung.');
-    }
+    final response = await _withFriendlyNetworkError(() async {
+      switch (method) {
+        case 'GET':
+          return http.get(uri, headers: headers);
+        case 'POST':
+          return http.post(uri, headers: headers, body: jsonEncode(body ?? {}));
+        case 'PATCH':
+          return http.patch(
+            uri,
+            headers: headers,
+            body: jsonEncode(body ?? {}),
+          );
+        case 'DELETE':
+          return http.delete(uri, headers: headers);
+        default:
+          throw Exception('Method API tidak didukung.');
+      }
+    });
 
     final Object? decoded;
     try {
