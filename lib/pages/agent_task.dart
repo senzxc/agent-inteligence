@@ -834,6 +834,40 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
     return '${_formatTaskDate(date)}${time == null ? '' : ' • $time'}';
   }
 
+  DateTime? _taskDeadlineDateTime(Map<String, dynamic> task) {
+    final date = _taskDeadlineDate(task);
+    if (date == null) return null;
+
+    final time = _taskDeadlineTime(task);
+    if (time == null) {
+      return DateTime(date.year, date.month, date.day, 23, 59, 59);
+    }
+
+    final parts = time.split(':');
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+    );
+  }
+
+  String? _taskDeadlineRelativeLabel(Map<String, dynamic> task) {
+    final deadline = _taskDeadlineDateTime(task);
+    if (deadline == null) return null;
+
+    final remaining = deadline.difference(DateTime.now());
+    if (remaining <= Duration.zero) return 'Tenggat terlewat';
+    if (remaining <= const Duration(hours: 24)) {
+      final hours = remaining.inHours;
+      return hours == 0 ? 'Kurang dari 1 jam lagi' : 'Tersisa $hours jam';
+    }
+
+    final days = remaining.inDays;
+    return '$days hari lagi';
+  }
+
   DateTime? _taskCreatedDate(Map<String, dynamic> task) {
     final raw = (task['createdAt'] ?? task['created_at'] ?? task['created'])
         ?.toString()
@@ -1526,6 +1560,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
   Future<void> _showTaskDetailsDialog(Map<String, dynamic> task) async {
     var selectedStatus = _taskStatus(task);
     var completedAt = _taskCompletedAt(task);
+    var completedDate = _taskCompletedDate(task);
     var isUpdatingStatus = false;
     String? statusError;
 
@@ -1534,27 +1569,27 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) {
           final isCompleted = selectedStatus == 'Selesai';
-          final (
-            statusColor,
-            statusBackground,
-            statusIcon,
-          ) = switch (selectedStatus) {
-            'Berjalan' => (
-              const Color(0xFFD97706),
-              const Color(0xFFFFF7ED),
-              Icons.autorenew_rounded,
-            ),
-            'Selesai' => (
-              const Color(0xFF15803D),
-              const Color(0xFFF0FDF4),
-              Icons.check_circle_outline_rounded,
-            ),
-            _ => (
-              _primary,
-              const Color(0xFFEAF3FF),
-              Icons.radio_button_unchecked_rounded,
-            ),
-          };
+          // final (
+          //   statusColor,
+          //   statusBackground,
+          //   statusIcon,
+          // ) = switch (selectedStatus) {
+          //   'Berjalan' => (
+          //     const Color(0xFFD97706),
+          //     const Color(0xFFFFF7ED),
+          //     Icons.autorenew_rounded,
+          //   ),
+          //   'Selesai' => (
+          //     const Color(0xFF15803D),
+          //     const Color(0xFFF0FDF4),
+          //     Icons.check_circle_outline_rounded,
+          //   ),
+          //   _ => (
+          //     _primary,
+          //     const Color(0xFFEAF3FF),
+          //     Icons.radio_button_unchecked_rounded,
+          //   ),
+          // };
 
           Future<void> selectStatus(String nextStatus) async {
             if (nextStatus == selectedStatus ||
@@ -1580,6 +1615,7 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                       for (final updatedTask in _tasks) {
                         if (_taskId(updatedTask) == _taskId(task)) {
                           completedAt = _taskCompletedAt(updatedTask);
+                          completedDate = _taskCompletedDate(updatedTask);
                           break;
                         }
                       }
@@ -1681,38 +1717,38 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 9,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusBackground,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: statusColor.withValues(alpha: 0.2),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    statusIcon,
-                                    size: 15,
-                                    color: statusColor,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    selectedStatus,
-                                    style: TextStyle(
-                                      color: statusColor,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                            // Container(
+                            //   padding: const EdgeInsets.symmetric(
+                            //     horizontal: 12,
+                            //     vertical: 9,
+                            //   ),
+                            //   decoration: BoxDecoration(
+                            //     color: statusBackground,
+                            //     borderRadius: BorderRadius.circular(12),
+                            //     border: Border.all(
+                            //       color: statusColor.withValues(alpha: 0.2),
+                            //     ),
+                            //   ),
+                            //   child: Row(
+                            //     mainAxisSize: MainAxisSize.min,
+                            //     children: [
+                            //       Icon(
+                            //         statusIcon,
+                            //         size: 15,
+                            //         color: statusColor,
+                            //       ),
+                            //       const SizedBox(width: 8),
+                            //       Text(
+                            //         selectedStatus,
+                            //         style: TextStyle(
+                            //           color: statusColor,
+                            //           fontWeight: FontWeight.w700,
+                            //           fontSize: 13,
+                            //         ),
+                            //       ),
+                            //     ],
+                            //   ),
+                            // ),
                             const SizedBox(height: 18),
                             const Text(
                               'DESKRIPSI',
@@ -1745,21 +1781,12 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 18),
-                            _buildTaskDetailTile(
-                              icon: Icons.event_outlined,
-                              label: 'Tenggat',
-                              value: _taskDeadline(task),
-                            ),
-                            _buildTaskDetailTile(
-                              icon: Icons.calendar_today_outlined,
-                              label: 'Tanggal dibuat',
-                              value: _taskCreatedAt(task),
-                            ),
-                            _buildTaskDetailTile(
-                              icon: Icons.task_alt_rounded,
-                              label: 'Selesai pada',
-                              value: completedAt,
+                            const SizedBox(height: 20),
+                            _buildTaskTimeline(
+                              task: task,
+                              status: selectedStatus,
+                              completedAt: completedAt,
+                              completedDate: completedDate,
                             ),
                             if (widget.canManageTasks) ...[
                               const SizedBox(height: 18),
@@ -1848,19 +1875,19 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                   )
                                 else
                                   Expanded(
-                                    child: OutlinedButton.icon(
+                                    child: FilledButton.icon(
                                       onPressed: isUpdatingStatus
                                           ? null
                                           : () => Navigator.pop(
                                               dialogContext,
-                                              'edit',
+                                              'delete',
                                             ),
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: _primary,
-                                        minimumSize: const Size.fromHeight(46),
-                                        side: const BorderSide(
-                                          color: Color(0xFFBFDBFE),
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFFDC2626,
                                         ),
+                                        foregroundColor: Colors.white,
+                                        minimumSize: const Size.fromHeight(46),
                                         shape: RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(
                                             12,
@@ -1868,34 +1895,37 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                                         ),
                                       ),
                                       icon: const Icon(
-                                        Icons.edit_outlined,
+                                        Icons.delete_outline_rounded,
                                         size: 18,
                                       ),
-                                      label: const Text('Edit'),
+                                      label: const Text('Hapus'),
                                     ),
                                   ),
                                 const SizedBox(width: 10),
+
                                 Expanded(
-                                  child: FilledButton.icon(
+                                  child: OutlinedButton.icon(
                                     onPressed: isUpdatingStatus
                                         ? null
                                         : () => Navigator.pop(
                                             dialogContext,
-                                            'delete',
+                                            'edit',
                                           ),
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: const Color(0xFFDC2626),
-                                      foregroundColor: Colors.white,
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: _primary,
                                       minimumSize: const Size.fromHeight(46),
+                                      side: const BorderSide(
+                                        color: Color(0xFFBFDBFE),
+                                      ),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
                                       ),
                                     ),
                                     icon: const Icon(
-                                      Icons.delete_outline_rounded,
+                                      Icons.edit_outlined,
                                       size: 18,
                                     ),
-                                    label: const Text('Hapus'),
+                                    label: const Text('Edit'),
                                   ),
                                 ),
                               ],
@@ -2005,46 +2035,205 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
     );
   }
 
-  Widget _buildTaskDetailTile({
+  Widget _buildTaskTimeline({
+    required Map<String, dynamic> task,
+    required String status,
+    required String completedAt,
+    required DateTime? completedDate,
+  }) {
+    final isCompleted = status == 'Selesai';
+    final deadlineDateTime = _taskDeadlineDateTime(task);
+    final timeUntilDeadline = deadlineDateTime?.difference(DateTime.now());
+    final deadlineLabel = isCompleted ? null : _taskDeadlineRelativeLabel(task);
+    final deadlineColor =
+        isCompleted ||
+            timeUntilDeadline == null ||
+            timeUntilDeadline > const Duration(hours: 24)
+        ? const Color(0xFF1565C0)
+        : timeUntilDeadline <= Duration.zero
+        ? const Color(0xFFDC2626)
+        : const Color(0xFFD97706);
+    final deadlineBackground = deadlineColor == const Color(0xFFDC2626)
+        ? const Color(0xFFFEF2F2)
+        : deadlineColor == const Color(0xFFD97706)
+        ? const Color(0xFFFFF7ED)
+        : const Color(0xFFEAF3FF);
+    final isLate =
+        isCompleted &&
+        completedDate != null &&
+        deadlineDateTime != null &&
+        completedDate.isAfter(deadlineDateTime);
+    final hasCompletionTiming =
+        isCompleted && completedDate != null && deadlineDateTime != null;
+    final completionColor = !isCompleted
+        ? const Color(0xFF64748B)
+        : !hasCompletionTiming
+        ? const Color(0xFF64748B)
+        : isLate
+        ? const Color(0xFFDC2626)
+        : const Color(0xFF15803D);
+    final completionBackground = !isCompleted
+        ? const Color(0xFFF1F5F9)
+        : !hasCompletionTiming
+        ? const Color(0xFFF1F5F9)
+        : isLate
+        ? const Color(0xFFFEF2F2)
+        : const Color(0xFFF0FDF4);
+    final completionDetail = !isCompleted
+        ? null
+        : completedDate == null
+        ? 'Waktu penyelesaian tidak tersedia'
+        : deadlineDateTime == null
+        ? 'Tenggat tidak tersedia untuk perbandingan'
+        : isLate
+        ? 'Selesai terlambat'
+        : 'Selesai tepat waktu';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'WAKTU TUGAS',
+          style: TextStyle(
+            color: Color(0xFF64748B),
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFAFBFD),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE8EEF6)),
+          ),
+          child: Column(
+            children: [
+              _buildTaskTimelineItem(
+                icon: Icons.calendar_today_outlined,
+                label: 'Tanggal dibuat',
+                value: _taskCreatedAt(task),
+                color: const Color(0xFF64748B),
+                background: const Color(0xFFF1F5F9),
+              ),
+              _buildTaskTimelineItem(
+                icon: Icons.event_outlined,
+                label: 'Tenggat',
+                value: _taskDeadline(task),
+                detail: deadlineLabel,
+                color: deadlineColor,
+                background: deadlineBackground,
+                highlighted: true,
+              ),
+              _buildTaskTimelineItem(
+                icon: Icons.task_alt_rounded,
+                label: 'Selesai',
+                value: isCompleted
+                    ? completedAt == '-'
+                          ? 'Waktu tidak tersedia'
+                          : completedAt
+                    : 'Belum selesai',
+                detail: completionDetail,
+                color: completionColor,
+                background: completionBackground,
+                isLast: true,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTaskTimelineItem({
     required IconData icon,
     required String label,
     required String value,
+    required Color color,
+    required Color background,
+    String? detail,
+    bool highlighted = false,
+    bool isLast = false,
   }) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 9),
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFD),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE8EEF6)),
-      ),
+    return IntrinsicHeight(
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(icon, color: _primary, size: 19),
-          const SizedBox(width: 12),
-          Expanded(
+          SizedBox(
+            width: 34,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: background,
+                    shape: BoxShape.circle,
                   ),
+                  child: Icon(icon, color: color, size: 17),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: Color(0xFF14264D),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                if (!isLast)
+                  Expanded(
+                    child: Center(
+                      child: Container(
+                        width: 2,
+                        color: const Color(0xFFDCE6F2),
+                      ),
+                    ),
                   ),
-                ),
               ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 4),
+              padding: EdgeInsets.symmetric(
+                vertical: highlighted ? 10 : 9,
+                horizontal: highlighted ? 11 : 0,
+              ),
+              decoration: highlighted
+                  ? BoxDecoration(
+                      color: background,
+                      borderRadius: BorderRadius.circular(12),
+                    )
+                  : null,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: Color(0xFF64748B),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      color: highlighted ? color : const Color(0xFF14264D),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (detail != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      detail,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         ],
@@ -4901,13 +5090,40 @@ class _AgentTaskPageState extends State<AgentTaskPage> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          deadlineTime,
-                          style: const TextStyle(
-                            color: cupertino.Color.fromARGB(255, 125, 131, 143),
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Tenggat',
+                              style: TextStyle(
+                                color: cupertino.Color.fromARGB(
+                                  255,
+                                  125,
+                                  131,
+                                  143,
+                                ),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                height: 1,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              deadlineTime,
+                              style: const TextStyle(
+                                color: cupertino.Color.fromARGB(
+                                  255,
+                                  125,
+                                  131,
+                                  143,
+                                ),
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                height: 1.1,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
