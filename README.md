@@ -119,4 +119,5 @@ The APK is available at `build/app/outputs/flutter-apk/app-release.apk`. Users w
 
 The current application ID is `com.example.agent_inteligence`, which matches the existing Firebase configuration. It is retained for direct APK testing; before long-term public distribution, replace it with a unique application ID and register the same ID as an Android app in Firebase.
 
-Agent Intelligence Tracker made with ♥ by senzxc.
+
+Agent Intelligence Tracker made with ❤ by senzxc.
