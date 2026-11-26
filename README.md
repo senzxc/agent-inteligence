@@ -1,6 +1,6 @@
 <div align="center">
   <img src="assets/icon/app_icon.png" alt="Agent Intelligence" width="120">
-  <h1>Agent Intelligence</h1>
+  <h1>Agent Intelligence Tracker</h1>
   <p>A field agent activity monitoring and management app.</p>
 
   <img src="https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white" alt="Flutter">
@@ -16,7 +16,7 @@
 
 ## ✨ About
 
-**Agent Intelligence** helps agents and teams monitor field activities in one app. Agents can view tasks and update their profiles, while their locations and statuses can be monitored on a map.
+**Agent Intelligence Tracker** helps agents and teams monitor field activities in one app. Agents can view tasks and update their profiles, while their locations and statuses can be monitored on a map.
 
 ### Key features
 
