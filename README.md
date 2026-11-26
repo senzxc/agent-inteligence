@@ -1,7 +1,7 @@
 <div align="center">
   <img src="assets/icon/app_icon.png" alt="Agent Intelligence" width="120">
   <h1>Agent Intelligence</h1>
-  <p>Aplikasi pemantauan dan pengelolaan aktivitas agen lapangan.</p>
+  <p>A field agent activity monitoring and management app.</p>
 
   <img src="https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white" alt="Flutter">
   <img src="https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white" alt="Dart">
@@ -14,60 +14,59 @@
 
 ---
 
-## ✨ Tentang aplikasi
+## ✨ About
 
-**Agent Intelligence** membantu agen dan tim memantau aktivitas lapangan dalam satu aplikasi. Agen dapat melihat tugas dan memperbarui profil, sementara informasi lokasi dan status agen dapat dipantau melalui peta.
+**Agent Intelligence** helps agents and teams monitor field activities in one app. Agents can view tasks and update their profiles, while their locations and statuses can be monitored on a map.
 
-### Fitur utama
+### Key features
 
-- 📍 **Pelacakan lokasi agen** — pembaruan lokasi berjalan di latar belakang Android dengan notifikasi layanan aktif.
-- 🗺️ **Peta dan kantor** — melihat lokasi agen dan daftar kantor pada peta.
-- 👥 **Pemantauan tim** — melihat daftar, profil, dan status kehadiran agen.
-- ✅ **Manajemen tugas** — melihat tugas agen dan memperbarui status pengerjaan.
-- 🔔 **Push notification** — menerima notifikasi Firebase Cloud Messaging di Android.
-- 🖼️ **Profil agen** — mengubah informasi dan foto profil.
-- 🆕 **Catatan pembaruan** — melihat changelog aplikasi dari dashboard.
+- 📍 **Agent location tracking** — location updates continue in the background on Android with a persistent service notification.
+- 🗺️ **Maps and offices** — view agent locations and office listings on a map.
+- 👥 **Team monitoring** — view agent lists, profiles, and presence statuses.
+- ✅ **Task management** — view agent tasks and update their progress.
+- 🔔 **Push notifications** — receive Firebase Cloud Messaging notifications on Android.
+- 🖼️ **Agent profiles** — update profile information and photos.
+- 🆕 **Release notes** — view the app changelog from the dashboard.
 
-## 🧰 Teknologi
+## 🧰 Tech stack
 
-| Area | Teknologi |
+| Area | Technologies |
 | --- | --- |
-| Aplikasi mobile | Flutter, Dart |
-| Peta dan lokasi | `flutter_map`, `geolocator`, `geocoding` |
+| Mobile app | Flutter, Dart |
+| Maps and location | `flutter_map`, `geolocator`, `geocoding` |
 | Backend API | Node.js, Express |
 | Database | Oracle Database |
-| Notifikasi Android | Firebase Cloud Messaging, local notifications |
-| Penyimpanan tugas | JSON |
+| Android notifications | Firebase Cloud Messaging, local notifications |
+| Task storage | JSON |
 
-## 🚀 Menjalankan aplikasi
+## 🚀 Getting started
 
-### Prasyarat
+### Prerequisites
 
-- Flutter SDK dan Dart SDK yang sesuai dengan batas SDK di [`pubspec.yaml`](pubspec.yaml)
-- Android Studio atau perangkat Android untuk menjalankan aplikasi
-- Node.js dan akses Oracle Database jika ingin menjalankan backend
+- Flutter SDK and Dart SDK compatible with the constraints in [`pubspec.yaml`](pubspec.yaml)
+- Android Studio or an Android device to run the app
+- Node.js and access to an Oracle Database to run the backend
 
-### Aplikasi Flutter
+### Flutter app
 
 ```powershell
 flutter pub get
 flutter run
 ```
 
-Firebase Android telah dikonfigurasi untuk proyek ini. Untuk menguji aplikasi pada perangkat, pastikan perangkat memiliki izin lokasi dan notifikasi yang diperlukan.
+Firebase for Android is configured for this project. When testing on a device, make sure the app has the required location and notification permissions.
 
 ### Backend
 
-Backend membutuhkan koneksi Oracle. Siapkan variabel lingkungan berikut di `backend/.env` sebelum menjalankannya:
+The backend requires an Oracle connection. Set the following environment variables in `backend/.env` before starting it:
 
 ```dotenv
 PORT=3000
-ORACLE_USER=nama_pengguna
+ORACLE_USER=username
 ORACLE_PASSWORD=password
 ORACLE_CONNECT_STRING=host:port/service_name
 ```
 
-Jangan commit file `.env` atau membagikan kredensial database.
 
 ```powershell
 cd backend
@@ -75,47 +74,49 @@ npm install
 node server.js
 ```
 
-Jalankan pengujian backend dengan:
+Run the backend tests with:
 
 ```powershell
 npm test
 ```
 
-## 📍 Pelacakan lokasi Android
+## 📍 Android location tracking
 
-Pelacakan dimulai otomatis setelah login dan menggunakan foreground location service dengan notifikasi permanen saat aktif. Pembaruan tetap berjalan saat aplikasi berada di latar belakang atau layar terkunci. Agen dinyatakan offline setelah 2 menit tanpa pembaruan lokasi dan kembali online setelah pembaruan diterima. Android tetap dapat menghentikan proses jika aplikasi dihentikan paksa atau perangkat menerapkan pembatasan baterai.
+Tracking starts automatically after login and uses a foreground location service with a persistent notification while active. Updates continue while the app is in the background or the screen is locked. An agent is marked offline after 2 minutes without a location update and returns online when the next update is received. Android may still stop the process if the app is force-stopped or the device applies battery restrictions.
 
-## 🔔 Push notification Android (FCM)
+## 🔔 Android push notifications (FCM)
 
-Firebase dan FCM diinisialisasi saat aplikasi Android dibuka. Izin notifikasi diminta oleh Android, notifikasi saat aplikasi terbuka ditampilkan sebagai notifikasi lokal, dan notifikasi FCM dengan payload notification ditampilkan otomatis saat aplikasi berada di latar belakang. Untuk iOS, konfigurasi APNs masih perlu disiapkan terpisah.
+Firebase and FCM are initialized when the Android app starts. Android requests notification permission; notifications received while the app is open are shown as local notifications, and FCM notifications with a `notification` payload are displayed automatically when the app is in the background. APNs must be configured separately for iOS.
 
-Untuk tes manual, kirim pesan uji dari Firebase Console ke token FCM perangkat. Token hanya dicetak bila build dibuat dengan `--dart-define=LOG_FCM_TOKEN=true`; **jangan gunakan opsi ini pada APK yang dibagikan ke publik**:
+To test manually, send a test message from the Firebase Console to the device's FCM token. The token is only printed when the app is built with `--dart-define=LOG_FCM_TOKEN=true`; **do not use this option for APKs distributed publicly**:
 
 ```powershell
 flutter build apk --release --dart-define=LOG_FCM_TOKEN=true
 adb logcat -s flutter
 ```
 
-Salin token dari log lokal ke fitur **Send test message** di Firebase Console. Build publik biasa dibuat tanpa `--dart-define`, sehingga token tidak dicetak. Firebase Console cocok untuk pengujian manual; pengiriman otomatis atau tertarget ke pengguna aplikasi membutuhkan backend tepercaya yang mengirim melalui Firebase Admin SDK atau Cloud Functions. Jangan menyimpan kredensial Admin SDK di aplikasi Flutter.
+Copy the token from the local log into the **Send test message** feature in the Firebase Console. Regular public builds omit `--dart-define`, so the token is not printed. The Firebase Console is suitable for manual testing; automated or targeted messaging requires a trusted backend that sends messages using the Firebase Admin SDK or Cloud Functions. Never store Admin SDK credentials in the Flutter app.
 
-## 🆕 Changelog aplikasi
+## 🆕 App changelog
 
-Changelog terbaru ditampilkan sekali saat pertama kali aplikasi dibuka atau setelah versi/build aplikasi berubah. Pengguna dapat membukanya kembali dari ikon **Apa yang baru?** di dashboard. Hanya catatan versi terbaru yang disimpan; perbarui `latestEntries` di [`lib/services/changelog_service.dart`](lib/services/changelog_service.dart) untuk rilis berikutnya dan naikkan nomor versi/build di [`pubspec.yaml`](pubspec.yaml).
+The latest changelog is shown once when the app is first opened or whenever its version/build changes. Users can reopen it from the **What's new?** icon on the dashboard. Only the latest release notes are kept; update `latestEntries` in [`lib/services/changelog_service.dart`](lib/services/changelog_service.dart) for the next release and increment the version/build number in [`pubspec.yaml`](pubspec.yaml).
 
-## 📦 Membuat APK release Android
+## 📦 Building an Android release APK
 
-APK release harus ditandatangani dengan key milik pemilik aplikasi. Buat key sekali dan simpan di luar repository; jangan kirim atau commit file key maupun password-nya:
+Release APKs must be signed with the app owner's key. Create the key once and store it outside the repository; NEVER share or commit the key file or its password:
 
 ```powershell
 keytool -genkey -v -keystore "$env:USERPROFILE\agent-tracker-upload-key.jks" -keyalg RSA -keysize 2048 -validity 10000 -alias upload
 ```
 
-Salin `android/key.properties.example` menjadi `android/key.properties`, lalu isi password dan path absolut ke file `.jks` yang dibuat. File key dan `key.properties` sudah diabaikan Git. Build APK publik tanpa flag diagnostik:
+Copy `android/key.properties.example` to `android/key.properties`, then enter the password and absolute path to the generated `.jks` file. The key and `key.properties` files are ignored by Git. Build a public APK without diagnostic flags:
 
 ```powershell
 flutter build apk --release
 ```
 
-APK tersedia di `build/app/outputs/flutter-apk/app-release.apk`. Pengguna yang sudah memasang build dengan tanda tangan berbeda (misalnya debug) perlu mencopotnya sebelum memasang APK ini. Pembaruan APK berikutnya harus menggunakan key penandatangan yang sama.
+The APK is available at `build/app/outputs/flutter-apk/app-release.apk`. Users with a build signed using a different key (such as a debug build) must uninstall it before installing this APK. Future APK updates must use the same signing key.
 
-ID paket saat ini adalah `com.example.agent_inteligence` dan cocok dengan konfigurasi Firebase yang ada. ID itu dipertahankan untuk tes APK langsung; sebelum distribusi publik jangka panjang, ganti dengan ID unik milik aplikasi dan daftarkan ID yang sama sebagai aplikasi Android di Firebase.
+The current application ID is `com.example.agent_inteligence`, which matches the existing Firebase configuration. It is retained for direct APK testing; before long-term public distribution, replace it with a unique application ID and register the same ID as an Android app in Firebase.
+
+Agent Intelligence Tracker made with ♥ by senzxc.
