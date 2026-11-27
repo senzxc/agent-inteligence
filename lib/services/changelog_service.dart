@@ -7,11 +7,9 @@ import '../widgets/changelog_dialog.dart';
 class ChangelogService {
   static const _lastSeenVersionKey = 'changelog_last_seen_version';
   static const List<String> latestEntries = [
-    'Daftar tugas diurutkan berdasarkan tanggal dan jam tenggat, dari yang terdekat.',
-    'Pilih semua dan hapus massal hanya berlaku untuk tugas yang tampil sesuai filter aktif.',
-    'Detail tugas selesai kini menampilkan waktu penyelesaiannya.',
-    'Optimalisasi layout pada detail tugas.',
-    'Menambahkan tombol kiri/kanan pada pemilihan bulan dan tahun.',
+    'Menambahkan linimasa waktu (dibuat, tenggat, selesai) beserta indikator ketepatan waktu pada detail tugas.',
+    'Memperbarui batas maksimal karakter menjadi 75 untuk judul dan 1.000 untuk deskripsi tugas.',
+    'Mengoptimalkan layout halaman detail tugas agar lebih rapi dan responsif.',
   ];
 
   static Future<void> showIfNewVersion(BuildContext context) async {
